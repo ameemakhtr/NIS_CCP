@@ -246,8 +246,14 @@ By synthesizing **Vigenère Polyalphabetic Substitution** and **Hill Polygraphic
 ---
 
 ## 8. References
-1. Dr. Shariq Mahmood Khan. *Lecture Notes on Shift Ciphers (`2-Shift-Cipher.pdf`)*, Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
-2. Dr. Shariq Mahmood Khan. *Lecture Notes on Vigenère Ciphers (`3-Vigenere-Cipher.pdf`)*, Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
-3. Dr. Shariq Mahmood Khan. *Lecture Notes on Hill Ciphers (`7-Hill-Ciphers.pdf`)*, Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
-4. Dr. Shariq Mahmood Khan. *Lecture Notes on Affine Ciphers (`4-Affine-Cipher.pdf`)*, Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
-5. Shannon, C. E. (1949). *Communication Theory of Secrecy Systems*. Bell System Technical Journal, 28(4), 656-715.
+1. **Hill, L. S. (1929).** *Cryptography in an Algebraic Alphabet*. The American Mathematical Monthly, 36(6), 306–312. https://doi.org/10.2307/2298294
+2. **Shannon, C. E. (1949).** *Communication Theory of Secrecy Systems*. Bell System Technical Journal, 28(4), 656–715. https://doi.org/10.1002/j.1538-7305.1949.tb00928.x
+3. **Stallings, W. (2017).** *Cryptography and Network Security: Principles and Practice* (7th ed.). Pearson Education. ISBN: 978-0134444284.
+4. **Stinson, D. R., & Paterson, M. B. (2018).** *Cryptography: Theory and Practice* (4th ed.). CRC Press / Chapman & Hall. ISBN: 978-1138197015.
+5. **Khan, Dr. Shariq Mahmood.** *Lecture Notes on Network & Information Security (CT-460 / CT-486)*:
+   - Module 1: Introduction to Cryptosystem & Security Models (`1-New-Introduction-to-Cryptosystem.pdf`)
+   - Module 2: The Shift Cipher (`2-Shift-Cipher.pdf`)
+   - Module 3: The Vigenère Cipher (`3-Vigenere-Cipher.pdf`)
+   - Module 4: The Affine Cipher (`4-Affine-Cipher.pdf`)
+   - Module 7: The Hill Cipher (`7-Hill-Ciphers.pdf`)
+   Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
