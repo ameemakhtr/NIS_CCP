@@ -182,11 +182,13 @@ class CustomHybridCipher:
         stage2_output = self._hill_encrypt(stage1_output)
         return "".join(chr(val + 65) for val in stage2_output)
 
-    def decrypt(self, ciphertext: str) -> str:
+    def decrypt(self, ciphertext: str, strip_padding: bool = False) -> str:
         cleaned = clean_text(ciphertext)
         if not cleaned:
             return ""
         nums = [ord(c) - 65 for c in cleaned]
         stage2_reversed = self._hill_decrypt(nums)
         original_plaintext = self._vigenere_decrypt(stage2_reversed)
+        if strip_padding and original_plaintext.endswith('X'):
+            return original_plaintext[:-1]
         return original_plaintext
