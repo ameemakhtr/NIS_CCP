@@ -1,7 +1,8 @@
 """
 Security Analysis and Attack Simulation Module
-Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
-Complex Computing Problem [CLO3]
+Course: Network and Information Security (CT-460 / CT-486)
+Instructor: Dr. Shariq Mahmood Khan
+Department of Computer Science & IT, NED University of Engineering & Technology, Karachi
 
 Cryptanalytic Techniques:
 1. Frequency Analysis & Index of Coincidence (IoC) against English baseline.
@@ -106,16 +107,7 @@ class FrequencyAnalyzer:
 class KnownPlaintextAttacker:
     """
     Simulates Known-Plaintext Attack (KPA) against the Vigenere + Hill Hybrid Cipher.
-    
-    Attack Scenario:
-    The adversary captures full ciphertext C and possesses a known segment of the
-    original plaintext P_known (e.g., standard protocol header or greeting).
-    
-    Recovery Mechanism:
-    Evaluates invertible 2x2 Hill matrices modulo 26.
-    Inverts candidate Hill transformations on known ciphertext prefix and checks for
-    strict keystream periodicity of length L_V (Vigenere period).
-    Recovers both the Hill matrix and the Vigenere key, then decrypts the full message.
+    Follows Dr. Shariq Mahmood Khan's matrix formulation Y = K * x mod 26.
     """
 
     @classmethod
@@ -123,17 +115,10 @@ class KnownPlaintextAttacker:
         cls,
         ciphertext: str,
         known_prefix: str,
-        vigenere_key_len: int,
-        target_hill_mat: Optional[Tuple[int, int, int, int]] = None
+        vigenere_key_len: int
     ) -> Dict[str, Any]:
         """
-        Executes Known-Plaintext Attack.
-        
-        Args:
-            ciphertext: Full intercepted ciphertext.
-            known_prefix: Known plaintext segment (must cover at least 2 * vigenere_key_len).
-            vigenere_key_len: Length of Vigenere key (>= 10).
-            target_hill_mat: Optional hint to fast-path or search around target matrix.
+        Executes Known-Plaintext Attack using algebraic periodic constraint propagation.
         """
         start_time = time.perf_counter()
         c_clean = clean_text(ciphertext)
@@ -143,7 +128,6 @@ class KnownPlaintextAttacker:
         c_nums = [ord(c) - 65 for c in c_clean]
         p_nums = [ord(c) - 65 for c in p_clean]
 
-        # Use an even length for block processing
         known_even_len = (len(p_nums) // 2) * 2
         p_prefix = p_nums[:known_even_len]
         c_prefix = c_nums[:known_even_len]
@@ -153,7 +137,7 @@ class KnownPlaintextAttacker:
         recovered_hill = None
         recovered_vigenere_key = None
 
-        # Loop through candidate 2x2 matrices
+        # Iterate over all 157,248 invertible matrices in GL(2, Z_26)
         for a in range(26):
             for b in range(26):
                 for c_val in range(26):
@@ -164,22 +148,22 @@ class KnownPlaintextAttacker:
                         if inv_d is None:
                             continue
 
-                        # Candidate inverse matrix
+                        # Inverse matrix components
                         ia = (inv_d * d) % 26
                         ib = (inv_d * (-b)) % 26
                         ic = (inv_d * (-c_val)) % 26
                         id_val = (inv_d * a) % 26
 
-                        # Invert Hill on known blocks and check Vigenere keystream periodicity
+                        # Invert Hill: [x1, x2]^T = K^-1 * [y1, y2]^T mod 26
                         consistent = True
                         keystream = [None] * L_V
 
                         for b_idx in range(0, known_even_len, 2):
                             y1, y2 = c_prefix[b_idx], c_prefix[b_idx + 1]
-                            x1 = (y1 * ia + y2 * ic) % 26
-                            x2 = (y1 * ib + y2 * id_val) % 26
+                            x1 = (ia * y1 + ib * y2) % 26
+                            x2 = (ic * y1 + id_val * y2) % 26
 
-                            # Check element 1
+                            # Element 1
                             k1 = (x1 - p_prefix[b_idx]) % 26
                             kpos1 = b_idx % L_V
                             if keystream[kpos1] is not None and keystream[kpos1] != k1:
@@ -187,7 +171,7 @@ class KnownPlaintextAttacker:
                                 break
                             keystream[kpos1] = k1
 
-                            # Check element 2
+                            # Element 2
                             k2 = (x2 - p_prefix[b_idx + 1]) % 26
                             kpos2 = (b_idx + 1) % L_V
                             if keystream[kpos2] is not None and keystream[kpos2] != k2:
@@ -221,12 +205,12 @@ class KnownPlaintextAttacker:
 
         ia, ib, ic, id_val = recovered_hill[4]
 
-        # Decrypt full ciphertext using recovered parameters
+        # Full decryption using recovered matrix and recovered Vigenere key
         full_intermediate = []
         for b_idx in range(0, len(c_nums), 2):
             y1, y2 = c_nums[b_idx], c_nums[b_idx + 1]
-            x1 = (y1 * ia + y2 * ic) % 26
-            x2 = (y1 * ib + y2 * id_val) % 26
+            x1 = (ia * y1 + ib * y2) % 26
+            x2 = (ic * y1 + id_val * y2) % 26
             full_intermediate.extend([x1, x2])
 
         full_plaintext = []

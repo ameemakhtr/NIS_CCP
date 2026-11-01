@@ -1,11 +1,13 @@
 """
 Custom Hybrid Classical Cipher Implementation
-Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
-Complex Computing Problem [CLO3]
+Course: Network and Information Security (CT-460 / CT-486)
+Instructor: Dr. Shariq Mahmood Khan
+Department of Computer Science & IT, NED University of Engineering & Technology, Karachi
 
 Classical Ciphers Used (from Course Lectures):
 1. Stage 1: Polyalphabetic Substitution (Vigenere Cipher - 3-Vigenere-Cipher.pdf)
 2. Stage 2: Polygraphic Block Transformation (Hill Cipher - 7-Hill-Ciphers.pdf)
+   Following Dr. Shariq's exact column-vector convention: Y = K * x mod 26
 3. Baseline: Shift (Caesar) Cipher (2-Shift-Cipher.pdf)
 """
 
@@ -37,6 +39,7 @@ def modinv(a: int, m: int = 26) -> Optional[int]:
 class ShiftCipher:
     """
     Standard single-stage classical Shift Cipher (2-Shift-Cipher.pdf)
+    Formula: Y = (X + K) mod 26, X = (Y - K) mod 26
     Used for baseline efficiency and security comparison.
     """
     def __init__(self, shift: int = 3):
@@ -57,14 +60,11 @@ class CustomHybridCipher:
     - Stage 1: Vigenere Cipher (Polyalphabetic Substitution) [3-Vigenere-Cipher.pdf]
     - Stage 2: 2x2 Hill Cipher (Polygraphic Block Transformation) [7-Hill-Ciphers.pdf]
 
-    Enforces minimum key length of 10 characters.
+    Enforces minimum key length of 10 characters per assignment specification.
+    Follows Dr. Shariq Mahmood Khan's exact matrix-vector multiplication Y = K * x mod 26.
     """
 
     def __init__(self, vigenere_key: str = "CRYPTOGRAPHYKEY", hill_key: str = "HILLCIPHERKEY"):
-        """
-        Initializes the hybrid cipher with keys from course classical techniques.
-        Both keys must have length >= 10 characters.
-        """
         self.vigenere_key = clean_text(vigenere_key)
         self.hill_key_phrase = clean_text(hill_key)
 
@@ -73,24 +73,21 @@ class CustomHybridCipher:
         if len(self.hill_key_phrase) < 10:
             raise ValueError(f"Hill key phrase must be at least 10 characters! Got: {len(self.hill_key_phrase)}")
 
-        # Construct 2x2 Hill Key Matrix from key phrase
+        # Construct 2x2 Hill Key Matrix K = [[a, b], [c, d]]
         self.hill_mat = self._derive_hill_matrix(self.hill_key_phrase)
         self.hill_inv = self._invert_hill_matrix(self.hill_mat)
 
     def _derive_hill_matrix(self, key_phrase: str) -> Tuple[int, int, int, int]:
         """
         Derives an invertible 2x2 matrix modulo 26 from the 10+ character key phrase.
-        If initial letters are singular modulo 26, shifts until gcd(det, 26) == 1.
+        If initial letters form a singular matrix mod 26, shifts until gcd(det, 26) == 1.
         """
-        # Take first 4 characters as base matrix values
         vals = [ord(c) - 65 for c in key_phrase[:4]]
         a, b, c, d = vals[0], vals[1], vals[2], vals[3]
 
-        # Ensure det is invertible mod 26
         det = (a * d - b * c) % 26
         offset = 1
         while modinv(det, 26) is None:
-            # Adjust d slightly using remaining key entropy
             d = (d + offset) % 26
             det = (a * d - b * c) % 26
             offset += 1
@@ -98,7 +95,10 @@ class CustomHybridCipher:
         return (a, b, c, d)
 
     def _invert_hill_matrix(self, mat: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
-        """Calculates matrix inverse modulo 26 for decryption."""
+        """
+        Calculates matrix inverse modulo 26 as per Dr. Shariq's slide:
+        K^-1 = (det K)^-1 * [[d, -b], [-c, a]] mod 26
+        """
         a, b, c, d = mat
         det = (a * d - b * c) % 26
         inv_det = modinv(det, 26)
@@ -132,39 +132,45 @@ class CustomHybridCipher:
 
     # ------------------ STAGE 2: HILL CIPHER (POLYGRAPHIC) ------------------
     def _hill_encrypt(self, nums: List[int]) -> List[int]:
+        """
+        Exact formula from Dr. Shariq's 7-Hill-Ciphers.pdf (Slide 7):
+        [y1, y2]^T = K * [x1, x2]^T mod 26
+        y1 = (a*x1 + b*x2) mod 26
+        y2 = (c*x1 + d*x2) mod 26
+        """
         a, b, c, d = self.hill_mat
         res = []
-        # Pad with 'X' (23) if odd length (standard Hill convention)
         if len(nums) % 2 != 0:
             nums = nums + [ord('X') - 65]
 
         for i in range(0, len(nums), 2):
             x1, x2 = nums[i], nums[i + 1]
-            y1 = (x1 * a + x2 * c) % 26
-            y2 = (x1 * b + x2 * d) % 26
+            y1 = (a * x1 + b * x2) % 26
+            y2 = (c * x1 + d * x2) % 26
             res.extend([y1, y2])
         return res
 
     def _hill_decrypt(self, nums: List[int]) -> List[int]:
+        """
+        Exact decryption formula:
+        [x1, x2]^T = K^-1 * [y1, y2]^T mod 26
+        x1 = (ia*y1 + ib*y2) mod 26
+        x2 = (ic*y1 + id*y2) mod 26
+        """
         ia, ib, ic, id_val = self.hill_inv
         res = []
         for i in range(0, len(nums), 2):
             y1, y2 = nums[i], nums[i + 1]
-            x1 = (y1 * ia + y2 * ic) % 26
-            x2 = (y1 * ib + y2 * id_val) % 26
+            x1 = (ia * y1 + ib * y2) % 26
+            x2 = (ic * y1 + id_val * y2) % 26
             res.extend([x1, x2])
         return res
 
     # ------------------ END-TO-END INTERFACE ------------------
     def encrypt(self, plaintext: str) -> str:
-        """
-        Two-stage encryption:
-        Input -> [Stage 1: Vigenere Substitution] -> Intermediate -> [Stage 2: Hill Transformation] -> Ciphertext
-        """
         cleaned = clean_text(plaintext)
         if not cleaned:
             return ""
-        # Pad plaintext to even length with 'X' so original length is preserved cleanly
         if len(cleaned) % 2 != 0:
             cleaned += 'X'
 
@@ -173,10 +179,6 @@ class CustomHybridCipher:
         return "".join(chr(val + 65) for val in stage2_output)
 
     def decrypt(self, ciphertext: str) -> str:
-        """
-        Two-stage decryption:
-        Ciphertext -> [Reverse Stage 2: Inverse Hill] -> Intermediate -> [Reverse Stage 1: Inverse Vigenere] -> Plaintext
-        """
         cleaned = clean_text(ciphertext)
         if not cleaned:
             return ""
