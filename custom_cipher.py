@@ -86,11 +86,15 @@ class CustomHybridCipher:
         a, b, c, d = vals[0], vals[1], vals[2], vals[3]
 
         det = (a * d - b * c) % 26
-        offset = 1
         while modinv(det, 26) is None:
-            d = (d + offset) % 26
+            d = (d + 1) % 26
+            if d == 0:
+                c = (c + 1) % 26
+                if c == 0:
+                    b = (b + 1) % 26
+                    if b == 0:
+                        a = (a + 1) % 26
             det = (a * d - b * c) % 26
-            offset += 1
 
         return (a, b, c, d)
 
