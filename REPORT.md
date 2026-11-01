@@ -1,259 +1,194 @@
-# Network and Information Security (CT-460 / CT-486)
+# Network and Information Security (CT-486)
 ## Complex Computing Problem [CLO3]
-# Design and Break a Custom Cipher Based on Classical Techniques
+### Design and Break a Custom Cipher Based on Classical Techniques
+
+**Course Code:** CT-486  
+**Total Marks:** 10  
+**Max Group Members:** 04  
+**Submission Deadline:** 8th November 2026  
 
 ---
 
-### **Course Title:** Network and Information Security (CT-460 / CT-486)  
-### **Instructor:** Dr. Shariq Mahmood Khan  
-### **Institution:** Department of Computer Science & IT, NED University of Engineering & Technology, Karachi  
-### **Evaluation Component:** Complex Computing Problem (CLO3)  
-### **Submission Deadline:** 8th November 2026  
-### **Maximum Group Members:** 04  
+## 1. Combination of Classical Techniques to Form the Custom Cipher
 
----
+Per the design requirements, the custom cipher combines two distinct classical cipher techniques studied in class into a two-stage product cipher:
 
-## Abstract
-Classical cryptography provides the foundational theory upon which modern cryptosystems are designed, embodying Claude Shannon’s dual concepts of **Confusion** and **Diffusion**. In direct accordance with the lecture curriculum taught by Dr. Shariq Mahmood Khan at NED UET Karachi, this report presents the design, mathematical specification, algorithmic implementation, cryptanalysis, and empirical performance evaluation of a novel **Two-Stage Hybrid Product Cipher**. The cipher integrates two classical techniques studied in class:
-1. **Stage 1: Polyalphabetic Substitution (Vigenère Cipher - `3-Vigenere-Cipher.pdf`)** to provide confusion.
-2. **Stage 2: Polygraphic Block Transformation (Hill Cipher - `7-Hill-Ciphers.pdf`)** to provide diffusion.
+1. **Stage 1: Polyalphabetic Substitution (Vigenère Cipher)**
+   * **Technique:** Periodic shifting using a keyword of length $\ge 10$ characters (e.g., `CRYPTOGRAPHYKEY`, length 15).
+   * **Purpose (Confusion):** Masks the predictable single-letter frequency distribution of English text. Each plaintext letter $P[i]$ is mapped to a different ciphertext letter depending on its position:
+     $$C_1[i] = (P[i] + K_V[i \pmod{L_V}]) \pmod{26}$$
 
-Both stages enforce a key length of at least 10 characters. We define the cryptosystem rigorously using the classical **5-tuple $(P, C, K, E, D)$** formal framework from Dr. Shariq's introductory lectures. Furthermore, we simulate both a **Frequency Analysis Attack** (demonstrating flattening of letter distributions with an Index of Coincidence dropping from $0.0655$ to $0.0405$) and a **Known-Plaintext Attack (KPA)** using an algebraic periodic constraint solver that recovers both secret keys and decrypts the complete ciphertext in under $160\text{ ms}$ with a **100% success rate**. Finally, theoretical and empirical complexity benchmarks against the single-stage **Shift Cipher (`2-Shift-Cipher.pdf`)** demonstrate $O(N)$ linear efficiency.
-
----
-
-## 1. Classical Cipher Taxonomy & Architectural Design
-
-### 1.1 Course Curriculum Alignment (Dr. Shariq Mahmood Khan's Lectures)
-In CT-460 / CT-486, classical ciphers are studied across the following lecture modules:
-- `2-Shift-Cipher.pdf`: Single-stage additive monoalphabetic substitution:
-  $$Y = e_k(X) = (X + K) \pmod{26}, \quad X = d_k(Y) = (Y - K) \pmod{26}$$
-- `3-Vigenere-Cipher.pdf`: Polyalphabetic substitution using periodic keyword shifts:
-  $$Y = e_k(X_1, \dots, X_m) = (X_1 + K_1, \dots, X_m + K_m) \pmod{26}$$
-- `4-Affine-Cipher.pdf`: Monoalphabetic linear modular substitution:
-  $$Y = e_k(X) = (aX + b) \pmod{26}, \quad \gcd(a, 26) = 1$$
-- `7-Hill-Ciphers.pdf`: Polygraphic block substitution using linear algebra modulo 26:
-  $$Y = e_\pi(x) = K x \pmod{26}, \quad X = d_\pi(y) = K^{-1} y \pmod{26}$$
-
-### 1.2 Formal Cryptosystem Definition (5-Tuple Formulation)
-As established in `Introduction to Cryptosystems` (Slide 3), a cryptosystem is defined upon a 5-tuple:
-$$\mathcal{S} = (\mathcal{P}, \mathcal{C}, \mathcal{K}, \mathcal{E}, \mathcal{D})$$
-where:
-1. $\mathcal{P} = \Sigma^*$: The finite set of possible plaintexts over alphabet $\Sigma = \{A, B, \dots, Z\} \cong \mathbb{Z}_{26}$.
-2. $\mathcal{C} = \Sigma^*$: The finite set of possible ciphertexts over $\mathbb{Z}_{26}$.
-3. $\mathcal{K} = \mathcal{K}_{vig} \times \mathcal{K}_{hill}$: The compound key space, where $\mathcal{K}_{vig} = (\mathbb{Z}_{26})^L$ ($L \ge 10$) and $\mathcal{K}_{hill} = GL(2, \mathbb{Z}_{26})$ ($2 \times 2$ invertible matrices over $\mathbb{Z}_{26}$ derived from key phrase $\ge 10$).
-4. $\mathcal{E}$: The family of encryption rules $e_k: \mathcal{P} \to \mathcal{C}$ such that $e_k = e_{hill} \circ e_{vig}$.
-5. $\mathcal{D}$: The family of decryption rules $d_k: \mathcal{C} \to \mathcal{P}$ such that $d_k = d_{vig} \circ d_{hill}$, ensuring $d_k(e_k(x)) = x$ for every $x \in \mathcal{P}$.
+2. **Stage 2: Polygraphic Block Transformation (Hill Cipher)**
+   * **Technique:** Linear algebraic block matrix multiplication over $\mathbb{Z}_{26}$ using a $2 \times 2$ invertible key matrix $K_H$ derived from a key phrase of length $\ge 10$ characters (e.g., `HILLCIPHERKEY`, length 13).
+   * **Purpose (Diffusion):** Spreads statistical patterns across adjacent characters. Consecutive letters $(x_1, x_2)$ are transformed into $(y_1, y_2)$ via matrix multiplication:
+     $$\begin{pmatrix} y_1 \\ y_2 \end{pmatrix} = \begin{pmatrix} a & b \\ c & d \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix} \pmod{26}$$
+     where $\gcd(\det(K_H), 26) = \gcd((ad - bc) \pmod{26}, 26) = 1$.
 
 ```
-                       Plaintext (P)
-                             │
-                             ▼
-        ┌─────────────────────────────────────────┐
-        │                 STAGE 1                 │
-        │       Polyalphabetic Substitution       │  <--- Vigenère Key (K_v, len >= 10)
-        │            (Vigenère Cipher)            │       [Provides CONFUSION]
-        └────────────────────┬────────────────────┘
-                             │ Intermediate Stream (C_1)
-                             ▼
-        ┌─────────────────────────────────────────┐
-        │                 STAGE 2                 │
-        │       Polygraphic Block Matrix          │  <--- 2x2 Hill Key Matrix (K_H)
-        │             (Hill Cipher)               │       [Provides DIFFUSION]
-        └────────────────────┬────────────────────┘
-                             │
-                             ▼
-                      Ciphertext (C)
+Plaintext (P) ──> [Stage 1: Vigenère Substitution] ──> Intermediate (C_1) ──> [Stage 2: Hill Block Matrix] ──> Ciphertext (C)
+                     Key: K_V (length >= 10)                                     Key: K_H (2x2 Matrix, phrase >= 10)
 ```
 
 ---
 
-## 2. Mathematical Specification and Algorithms
+## 2. Algorithms for Encryption and Decryption
 
-### 2.1 Key Scheduling & Invertibility Requirements
-1. **Stage 1 (Vigenère Key $K_V$):** A keyword string of length $L_V \ge 10$ characters (e.g., `CRYPTOGRAPHYKEY`, $L_V = 15$).
-2. **Stage 2 (Hill Key Matrix $K_H$):** Formed from a key phrase of length $\ge 10$ characters (e.g., `HILLCIPHERKEY`, length 13). The matrix:
-   $$K_H = \begin{pmatrix} a & b \\ c & d \end{pmatrix} \in \mathbb{Z}_{26}^{2 \times 2}$$
-   must satisfy Dr. Shariq's condition for modular invertibility (`7-Hill-Ciphers.pdf`, Slide 4):
-   $$\gcd(\det(K_H), 26) = \gcd((ad - bc) \pmod{26}, 26) = 1$$
-   The modular inverse of the matrix is:
-   $$K_H^{-1} = (\det K_H)^{-1} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix} \pmod{26}$$
+### 2.1 Encryption Algorithm
 
----
-
-### 2.2 Encryption Algorithm
-- **Input:** Plaintext $P \in \Sigma^N$, Keys $K_V$ ($L_V \ge 10$), $K_H$ ($2 \times 2$ invertible matrix derived from key $\ge 10$).
-- **Output:** Ciphertext $C \in \Sigma^N$.
-
-```
-Algorithm 1: Custom Hybrid Encryption (Vigenère + Hill)
-────────────────────────────────────────────────────────────────────────
-Input : Plaintext P, Vigenère Key K_V (len >= 10), Hill Key K_H
+```text
+Algorithm 1: Custom Cipher Encryption
+Input : Plaintext P, Vigenère Key K_V (length >= 10), Hill Key Matrix K_H (2x2)
 Output: Ciphertext C
 
-1. P_clean <- CleanAndNormalizeToUpperAZ(P)
-2. if Length(P_clean) mod 2 != 0 then
-3.     P_clean <- P_clean + 'X'  // Standard Hill padding convention
-4. end if
+1. P_clean <- Filter uppercase A-Z characters from P
+2. If Length(P_clean) mod 2 != 0 Then
+3.     P_clean <- P_clean + 'X'  // Pad to even length for 2x1 block processing
+4. End If
 5. N <- Length(P_clean)
-6. C_1 <- Array of size N
-7. for i <- 0 to N - 1 do
+6. Initialize array C_1 of length N
+7. For i <- 0 to N - 1 Do
 8.     shift <- Ord(K_V[i mod Length(K_V)]) - 65
 9.     C_1[i] <- (Ord(P_clean[i]) - 65 + shift) mod 26
-10. end for
-11. C_nums <- Array of size N
-12. for j <- 0 to (N / 2) - 1 do
-13.    x1 <- C_1[2*j], x2 <- C_1[2*j + 1]
-14.    // Exact matrix multiplication from Dr. Shariq's slide 7: Y = K * x
-15.    C_nums[2*j]     <- (K_H.a * x1 + K_H.b * x2) mod 26
-16.    C_nums[2*j + 1] <- (K_H.c * x1 + K_H.d * x2) mod 26
-17. end for
-18. return ConvertToChars(C_nums)
+10. End For
+11. Initialize array C_nums of length N
+12. For j <- 0 to (N / 2) - 1 Do
+13.     x1 <- C_1[2*j], x2 <- C_1[2*j + 1]
+14.     C_nums[2*j]     <- (K_H.a * x1 + K_H.b * x2) mod 26
+15.     C_nums[2*j + 1] <- (K_H.c * x1 + K_H.d * x2) mod 26
+16. End For
+17. Return string of characters corresponding to C_nums
 ```
 
 ---
 
-### 2.3 Decryption Algorithm
-Decryption proceeds by inverting the transformations in reverse order:
+### 2.2 Decryption Algorithm
 
-```
-Algorithm 2: Custom Hybrid Decryption (Inverse Hill + Inverse Vigenère)
-────────────────────────────────────────────────────────────────────────
-Input : Ciphertext C, Keys K_V, K_H
-Output: Plaintext P
+```text
+Algorithm 2: Custom Cipher Decryption
+Input : Ciphertext C, Vigenère Key K_V, Hill Key Matrix K_H
+Output: Original Plaintext P
 
-1. C_nums <- ConvertToIntegers(C)
+1. C_nums <- Convert uppercase A-Z characters of C to integers (0-25)
 2. N <- Length(C_nums)
-3. K_inv <- ComputeModularMatrixInverse(K_H, 26)
-4. C_1 <- Array of size N
-5. for j <- 0 to (N / 2) - 1 do
+3. Compute K_inv <- (det(K_H))^-1 * [[d, -b], [-c, a]] mod 26
+4. Initialize array C_1 of length N
+5. For j <- 0 to (N / 2) - 1 Do
 6.     y1 <- C_nums[2*j], y2 <- C_nums[2*j + 1]
 7.     C_1[2*j]     <- (K_inv.a * y1 + K_inv.b * y2) mod 26
 8.     C_1[2*j + 1] <- (K_inv.c * y1 + K_inv.d * y2) mod 26
-9. end for
-10. P_chars <- Array of size N
-11. for i <- 0 to N - 1 do
-12.    shift <- Ord(K_V[i mod Length(K_V)]) - 65
-13.    P_chars[i] <- Chr(((C_1[i] - shift + 26) mod 26) + 65)
-14. end for
-15. return Concatenate(P_chars)
+9. End For
+10. Initialize array P_chars of length N
+11. For i <- 0 to N - 1 Do
+12.     shift <- Ord(K_V[i mod Length(K_V)]) - 65
+13.     P_chars[i] <- Chr(((C_1[i] - shift + 26) mod 26) + 65)
+14. End For
+15. Return concatenated string of P_chars
 ```
 
 ---
 
 ## 3. Security Analysis of the Custom Cipher
 
-### 3.1 Confusion and Diffusion Assessment
-- **Confusion (Vigenère Stage):** In standard English, the letter `E` appears with $12.7\%$ frequency. In our cipher, `E` is shifted by 15 distinct alphabetic values across its cycle, disguising monographic patterns.
-- **Diffusion (Hill Stage):** Because the Hill matrix multiplies letter pairs in $\mathbb{Z}_{26}^2$, any single letter change in plaintext fundamentally alters two adjacent ciphertext letters.
+### 3.1 Confusion and Diffusion
+* **Confusion:** The polyalphabetic substitution eliminates monoalphabetic 1-to-1 character mappings. A frequent letter like `'E'` in English ($12.7\%$) maps to different ciphertext letters depending on the key position.
+* **Diffusion:** The $2 \times 2$ Hill matrix transformation blends adjacent letter pairs. A modification in a single plaintext character alters both characters in the output block.
 
-### 3.2 Index of Coincidence (IoC) Cryptanalysis
-The **Index of Coincidence (IoC)** measures the probability of two randomly drawn letters being identical:
+### 3.2 Statistical and Frequency Analysis
+The **Index of Coincidence (IoC)** measures non-uniformity in character distributions:
 $$IC = \frac{\sum_{i=A}^Z f_i (f_i - 1)}{N(N - 1)}$$
-- Natural English Text: $IC \approx 0.0667$
-- Single-Stage Shift Cipher (`2-Shift-Cipher.pdf`): $IC \approx 0.06552$ (Completely preserved!)
-- Uniform Random Text: $IC \approx 0.0385$
-- **Our Hybrid Cipher:** $IC = \mathbf{0.04051}$
+* Standard English Plaintext: $IC \approx 0.0667$
+* Single-Stage Shift (Caesar) Cipher: $IC = 0.0655$ (Frequency distribution completely leaked)
+* Uniform Random / Polyalphabetic Baseline: $IC \approx 0.0385$
+* **Custom Hybrid Cipher:** $IC = \mathbf{0.0405}$
 
-#### Statistical Comparison:
-| Metric | Natural English Plaintext | Single-Stage Shift Cipher (`2-Shift`) | Custom Hybrid (Vigenère + Hill) |
-| :--- | :---: | :---: | :---: |
-| **Index of Coincidence ($IC$)** | **0.06552** | **0.06552** | **0.04051** |
-| **Chi-Squared ($\chi^2$ vs English)** | **34.62** | **34.62** | **800.61** |
-| **Top 3 Frequent Characters** | `T` (11.9%), `O` (10.3%), `I` (9.5%) | `A` (11.9%), `V` (10.3%), `P` (9.5%) | `N` (7.1%), `Y` (7.1%), `F` (6.3%) |
-
-**Conclusion:** Monographic frequency analysis is completely ineffective against the hybrid cipher.
+The cipher depresses the Index of Coincidence to near-random distribution ($0.0405$), rendering simple ciphertext-only frequency analysis attacks ineffective.
 
 ---
 
-## 4. Attack Simulation and Results
+## 4. Description of Attack Methods and Results
 
-As specified in Requirement 3 of the assignment, we simulate a **Known-Plaintext Attack (KPA)** against our cipher.
+Per the requirements, an attack program was implemented using a **Known-Plaintext Attack (KPA)** scenario.
 
-### 4.1 Threat Model
-- **Attacker Interception:** Full ciphertext $C$ of length $N$.
-- **Known Plaintext Segment:** A known prefix $P_{known}$ of length $M \ge 36$ characters.
-- **Attacker Objective:** Recover the secret Hill matrix $K_H$, recover the Vigenère keyword $K_V$, and decrypt the full unknown message.
-
-### 4.2 Cryptanalytic Methodology: Algebraic Periodic Elimination
-1. The number of invertible $2 \times 2$ matrices modulo 26 is $|GL(2, \mathbb{Z}_{26})| = 157,248$.
-2. For each candidate matrix $K_H \in GL(2, \mathbb{Z}_{26})$:
-   - Compute candidate inverse $K_H^{-1}$.
-   - Partially invert the Hill transformation on the known prefix:
+### 4.1 Attack Scenario and Methodology
+* **Assumed Attacker Access:** The adversary has intercepted the full ciphertext $C$ and possesses a known segment of the plaintext (first 36 characters) from standard message formats or headers.
+* **Attack Method:**
+  1. The total search space of $2 \times 2$ invertible matrices over $\mathbb{Z}_{26}$ is $|GL(2, \mathbb{Z}_{26})| = 157,248$.
+  2. For each candidate matrix $K_H$, the attack inverts the Hill stage for the known prefix:
      $$\begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = K_H^{-1} \begin{pmatrix} y_1 \\ y_2 \end{pmatrix} \pmod{26}$$
-   - Derive the implied Vigenère keystream:
-     $$K_{implied}[i] = (x_i - P_{known}[i]) \pmod{26}$$
-   - **Periodicity Constraint Test:** The Vigenère key must satisfy:
-     $$K_{implied}[i] \equiv K_{implied}[i + L_V]$$
-     If any pair violates this identity, candidate matrix $K_H$ is rejected immediately.
-3. This eliminates $> 99.999\%$ of candidate matrices within the first 1-2 block evaluations. Once the unique consistent matrix is found, the exact Vigenère key is extracted, and the entire ciphertext is decrypted.
+  3. The implied Vigenère keystream is derived:
+     $$K[i] = (x_i - P_{known}[i]) \pmod{26}$$
+  4. **Periodicity Check:** The Vigenère key must satisfy $K[i] \equiv K[i + L_V]$. Candidate matrices violating this periodicity are rejected immediately.
+  5. The unique valid matrix and Vigenère keyword are extracted, allowing full decryption of the remaining ciphertext.
 
 ---
 
-### 4.3 Attack Performance and Computational Effort
+### 4.2 Attack Success Rate and Computational Effort
 
-| Ciphertext Length ($N$) | Known Characters ($M$) | Unknown Characters Recovered | Success Rate | Execution Time (ms) | Candidate Matrices Evaluated |
+| Ciphertext Length ($N$) | Known Plaintext Characters ($M$) | Success Rate | Average Time (ms) | Candidate Matrices Evaluated |
+| :---: | :---: | :---: | :---: | :---: |
+| **100** | 36 | **100.0%** | **83.1 ms** | 42,881 |
+| **250** | 36 | **100.0%** | **83.1 ms** | 42,881 |
+| **500** | 36 | **100.0%** | **84.2 ms** | 42,881 |
+| **1000** | 36 | **100.0%** | **84.0 ms** | 42,881 |
+
+* **Success Rate:** $100\%$ across all tested lengths.
+* **Computational Effort:** The attack evaluates candidate matrices in less than **$85\text{ milliseconds}$** on standard hardware, fully recovering both keys and the unknown plaintext.
+
+---
+
+## 5. Performance Metrics and Efficiency Considerations
+
+### 5.1 Time Complexity Analysis
+* **Encryption Time Complexity:**
+  * Stage 1 (Vigenère): $O(N)$ operations for modular shifts.
+  * Stage 2 (Hill): $O(N)$ operations ($N/2$ vector-matrix multiplications).
+  * **Overall Custom Cipher:** $\mathbf{O(N)}$ linear time.
+* **Decryption Time Complexity:**
+  * Modular matrix inverse calculation: $O(1)$ constant time for $2 \times 2$ matrix.
+  * Inverse Hill + Inverse Vigenère passes: $O(N)$.
+  * **Overall Custom Cipher:** $\mathbf{O(N)}$ linear time.
+* **Single-Stage Shift Cipher Comparison:** Shift cipher performs a single modular addition per character, running in $O(N)$ time.
+
+---
+
+### 5.2 Empirical Execution Benchmarks (50 Iteration Averages)
+
+| Length ($N$ characters) | Custom Encrypt (ms) | Custom Decrypt (ms) | Shift Encrypt (ms) | Shift Decrypt (ms) | Overhead Factor |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| **100** | 36 | 64 | **100.0%** | **144.64 ms** | 128,738 |
-| **250** | 36 | 214 | **100.0%** | **151.17 ms** | 128,738 |
-| **500** | 36 | 464 | **100.0%** | **153.56 ms** | 128,738 |
-| **1000** | 36 | 964 | **100.0%** | **152.45 ms** | 128,738 |
+| **100** | 0.0300 ms | 0.0300 ms | 0.0126 ms | 0.0126 ms | $\approx 2.38\times$ |
+| **500** | 0.1426 ms | 0.1486 ms | 0.0601 ms | 0.0611 ms | $\approx 2.40\times$ |
+| **1,000** | 0.2831 ms | 0.2940 ms | 0.1183 ms | 0.1198 ms | $\approx 2.45\times$ |
+| **5,000** | 1.3792 ms | 1.4353 ms | 0.5583 ms | 0.5682 ms | $\approx 2.50\times$ |
+| **10,000** | 2.8358 ms | 2.9351 ms | 1.1191 ms | 1.1346 ms | $\approx 2.55\times$ |
 
-**Experimental Findings:**
-- The attack achieves **100% full recovery** across all tested message lengths.
-- Cryptanalysis completes in **under $160\text{ ms}$** on standard hardware.
-
----
-
-## 5. Efficiency and Time Complexity Considerations
-
-### 5.1 Asymptotic Complexity Analysis
-
-| Cipher Phase | Vigenère Stage (`3-Vigenere`) | Hill Stage (`7-Hill`) | Total Custom Hybrid | Baseline Shift Cipher (`2-Shift`) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Encryption Time** | $O(N)$ | $O(m^2 \cdot \frac{N}{m}) = O(N)$ | **$O(N)$** | $O(N)$ |
-| **Decryption Time** | $O(N)$ | $O(m^2 \cdot \frac{N}{m}) = O(N)$ | **$O(N)$** | $O(N)$ |
-| **Space Complexity** | $O(N)$ | $O(N)$ | **$O(N)$** | $O(N)$ |
+* **Analysis:** Both algorithms scale linearly with message size. The Custom Hybrid Cipher incurs an expected $\approx 2.4\times$ computational overhead over the single-stage Shift cipher due to the two sequential mathematical passes, while maintaining high throughput ($> 3.4\text{ million characters/sec}$).
 
 ---
 
-### 5.2 Empirical Benchmark: Custom Hybrid vs. Shift Cipher (Caesar)
-Measured across 50 iterations with Python 3.14:
+## 6. Suggestions for Improving the Cipher's Security
 
-| Message Length ($N$) | Custom Enc (ms) | Custom Dec (ms) | Shift Enc (ms) | Shift Dec (ms) | Overhead Factor |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| **100** | 0.0313 | 0.0312 | 0.0135 | 0.0134 | $\approx 2.3\times$ |
-| **500** | 0.1487 | 0.1510 | 0.0634 | 0.0647 | $\approx 2.3\times$ |
-| **1,000** | 0.2982 | 0.3065 | 0.1257 | 0.1279 | $\approx 2.4\times$ |
-| **5,000** | 1.4468 | 1.4953 | 0.6032 | 0.6066 | $\approx 2.4\times$ |
-| **10,000** | 2.9350 | 2.8855 | 1.1020 | 1.1001 | $\approx 2.6\times$ |
+To enhance security without significantly increasing algorithmic complexity:
 
-**Analysis:**  
-Both algorithms demonstrate true linear $O(N)$ execution scaling. The hybrid cipher introduces a modest $\approx 2.4\times$ overhead due to the dual-stage modular matrix arithmetic, while processing over **$3.4\text{ million characters/second}$**.
+1. **Autokey Key Scheduling:**  
+   Replace the periodic repeating Vigenère key with an **Autokey** mechanism where subsequent keystream values are drawn from the plaintext itself ($K[i] = P[i - L_V]$). This retains $O(N)$ linear complexity while eliminating the periodic keystream alignment exploited by the attack.
+2. **Larger Matrix Dimensions ($3 \times 3$ or $4 \times 4$):**  
+   Increasing the Hill block size to $m = 3$ or $m = 4$ expands the matrix key space to $1.6 \times 10^{12}$ and $8.6 \times 10^{21}$ possible matrices, making exhaustive algebraic search computationally infeasible while adding negligible matrix multiplication overhead.
+3. **Non-Linear S-Box Substitution:**  
+   Introduce a simple non-linear permutation lookup (S-Box) between stages to break the linear modular relationships over $\mathbb{Z}_{26}$.
 
 ---
 
-## 6. Recommendations for Improving Security
-1. **Autokey Chaining (Dynamic Vigenère):** Replace static periodic Vigenère with an Autokey Cipher where subsequent keystream characters are taken from plaintext, breaking the strict periodicity $K[i] = K[i + L_V]$.
-2. **Expanding Hill Matrix Dimension:** Scaling from $2 \times 2$ to $3 \times 3$ or $4 \times 4$ increases the matrix search space to $1.6 \times 10^{12}$ or $8.6 \times 10^{21}$, preventing brute-force algebraic search.
-3. **Non-Linear S-Box Substitution:** Incorporate non-linear modular mappings to prevent linear modular cancellation.
+## 7. Code Submission & Execution Details
 
----
+All project source files are organized into a clean repository:
+* `custom_cipher.py`: Cipher implementation and baseline Shift cipher.
+* `attack.py`: Frequency analysis and Known-Plaintext Attack solver.
+* `benchmark.py`: Empirical timing and complexity benchmarking suite.
+* `test_suite.py`: Automated unit tests.
+* `live_test.py`: Custom message live demonstration script.
+* `main.py`: Interactive CLI application (`python main.py --demo`).
 
-## 7. Conclusion
-By synthesizing **Vigenère Polyalphabetic Substitution** and **Hill Polygraphic Matrix Transformation** from Dr. Shariq Mahmood Khan's CT-460 / CT-486 curriculum at NED UET, we successfully designed a two-stage hybrid classical cipher that strictly fulfills all requirements of CLO3. The cipher provides robust statistical confusion and diffusion ($IC = 0.0405$) and linear $O(N)$ efficiency, while our automated algebraic KPA demonstrator highlights classical cryptanalytic vulnerabilities by cracking both keys in under $160\text{ ms}$.
-
----
-
-## 8. References
-1. **Hill, L. S. (1929).** *Cryptography in an Algebraic Alphabet*. The American Mathematical Monthly, 36(6), 306–312. https://doi.org/10.2307/2298294
-2. **Shannon, C. E. (1949).** *Communication Theory of Secrecy Systems*. Bell System Technical Journal, 28(4), 656–715. https://doi.org/10.1002/j.1538-7305.1949.tb00928.x
-3. **Stallings, W. (2017).** *Cryptography and Network Security: Principles and Practice* (7th ed.). Pearson Education. ISBN: 978-0134444284.
-4. **Stinson, D. R., & Paterson, M. B. (2018).** *Cryptography: Theory and Practice* (4th ed.). CRC Press / Chapman & Hall. ISBN: 978-1138197015.
-5. **Khan, Dr. Shariq Mahmood.** *Lecture Notes on Network & Information Security (CT-460 / CT-486)*:
-   - Module 1: Introduction to Cryptosystem & Security Models (`1-New-Introduction-to-Cryptosystem.pdf`)
-   - Module 2: The Shift Cipher (`2-Shift-Cipher.pdf`)
-   - Module 3: The Vigenère Cipher (`3-Vigenere-Cipher.pdf`)
-   - Module 4: The Affine Cipher (`4-Affine-Cipher.pdf`)
-   - Module 7: The Hill Cipher (`7-Hill-Ciphers.pdf`)
-   Department of Computer Science & IT, NED University of Engineering & Technology, Karachi.
+**Execution Command:**
+```bash
+python main.py --demo
+```
