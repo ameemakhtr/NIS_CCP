@@ -180,7 +180,10 @@ To enhance security without significantly increasing algorithmic complexity:
 
 ## 7. Code Submission & Execution Details
 
-All project source files are organized into a clean repository:
+All project source files are hosted in the public GitHub repository:
+**Repository Link:** https://github.com/ameemakhtr/NIS_CCP
+
+### Repository Contents:
 * `custom_cipher.py`: Cipher implementation and baseline Shift cipher.
 * `attack.py`: Frequency analysis and Known-Plaintext Attack solver.
 * `benchmark.py`: Empirical timing and complexity benchmarking suite.
