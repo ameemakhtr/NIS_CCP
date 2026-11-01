@@ -1,11 +1,11 @@
 """
 Empirical Performance and Attack Benchmarking Suite
-Course: Network and Information Security (CT-486)
-CLO: Complex Computing Problem [CLO3]
+Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
+Complex Computing Problem [CLO3]
 
 Benchmarks:
 1. Encryption / Decryption Execution Time & Throughput across input lengths.
-2. Comparative Analysis: Custom Two-Stage Hybrid vs Single-Stage Shift Cipher.
+2. Comparative Analysis: Custom Two-Stage Hybrid (Vigenere + Hill) vs Single-Stage Shift Cipher.
 3. Attack Computational Effort & Success Rate across ciphertext lengths.
 """
 
@@ -31,13 +31,13 @@ def generate_synthetic_english_text(length: int) -> str:
 def benchmark_ciphers() -> List[Dict]:
     """
     Benchmarks encryption & decryption latency for:
-    - Custom Hybrid Cipher (Vigenère + Columnar Transposition)
+    - Custom Hybrid Cipher (Vigenere + Hill)
     - Shift (Caesar) Cipher
     across sizes: 100, 500, 1000, 5000, 10000 characters.
     """
-    sub_key = "CRYPTOGRAPHYKEY"   # len 15
-    trans_key = "ALGORITHMIC"     # len 11
-    custom_cipher = CustomHybridCipher(sub_key, trans_key)
+    vigenere_key = "CRYPTOGRAPHYKEY"   # len 15
+    hill_key = "HILLCIPHERKEY"         # len 13
+    custom_cipher = CustomHybridCipher(vigenere_key, hill_key)
     shift_cipher = ShiftCipher(shift=5)
 
     lengths = [100, 500, 1000, 5000, 10000]
@@ -45,7 +45,7 @@ def benchmark_ciphers() -> List[Dict]:
     results = []
 
     print("\n" + "=" * 90)
-    print("           CIPHER PERFORMANCE BENCHMARK (ENCRYPTION & DECRYPTION)")
+    print("      CIPHER PERFORMANCE BENCHMARK (VIGENERE + HILL HYBRID VS SHIFT CIPHER)")
     print("=" * 90)
     header = f"{'Length (chars)':<15} | {'Custom Enc (ms)':<16} | {'Custom Dec (ms)':<16} | {'Shift Enc (ms)':<15} | {'Shift Dec (ms)':<15}"
     print(header)
@@ -95,29 +95,28 @@ def benchmark_attack() -> List[Dict]:
     """
     Benchmarks Known-Plaintext Attack computational effort and success rate across lengths.
     """
-    sub_key = "CYBERDEFENSE"    # len 12
-    trans_key = "PERMUTATION"   # len 11
-    cipher = CustomHybridCipher(sub_key, trans_key)
+    vigenere_key = "CYBERDEFENSEKEY"    # len 15
+    hill_key = "HILLCIPHERKEY"          # len 13
+    cipher = CustomHybridCipher(vigenere_key, hill_key)
 
     lengths = [100, 250, 500, 1000]
-    known_prefix_len = 35
-    trials = 10
+    known_prefix_len = 36
+    trials = 5
     attack_results = []
 
     print("\n" + "=" * 90)
-    print("               KNOWN-PLAINTEXT ATTACK (KPA) COMPUTATIONAL EFFORT")
+    print("        KNOWN-PLAINTEXT ATTACK (KPA) COMPUTATIONAL EFFORT ON HYBRID CIPHER")
     print("=" * 90)
-    header = f"{'Length (chars)':<15} | {'Known Chars':<15} | {'Success Rate':<15} | {'Avg Time (ms)':<18} | {'Avg Branches':<15}"
+    header = f"{'Length (chars)':<15} | {'Known Chars':<15} | {'Success Rate':<15} | {'Avg Time (ms)':<18} | {'Avg Matrices':<15}"
     print(header)
     print("-" * 90)
 
     for length in lengths:
         success_count = 0
         total_time = 0.0
-        total_branches = 0
+        total_matrices = 0
 
         for trial in range(trials):
-            # Generate random message
             plaintext = generate_synthetic_english_text(length)
             ciphertext = cipher.encrypt(plaintext)
             known_prefix = plaintext[:known_prefix_len]
@@ -125,17 +124,17 @@ def benchmark_attack() -> List[Dict]:
             res = KnownPlaintextAttacker.attack(
                 ciphertext=ciphertext,
                 known_prefix=known_prefix,
-                trans_key_len=len(trans_key),
-                sub_key_len=len(sub_key)
+                vigenere_key_len=len(vigenere_key)
             )
 
-            if res["success"] and res["recovered_full_plaintext"] == plaintext:
+            expected_pt = plaintext if len(plaintext) % 2 == 0 else plaintext + 'X'
+            if res["success"] and res["recovered_full_plaintext"] == expected_pt:
                 success_count += 1
             total_time += res["elapsed_seconds"]
-            total_branches += res["branch_evaluations"]
+            total_matrices += res["matrices_evaluated"]
 
         avg_time_ms = (total_time / trials) * 1000.0
-        avg_branches = total_branches / trials
+        avg_matrices = total_matrices / trials
         success_rate = (success_count / trials) * 100.0
 
         row = {
@@ -143,10 +142,10 @@ def benchmark_attack() -> List[Dict]:
             "known_chars": known_prefix_len,
             "success_rate": f"{success_rate:.1f}%",
             "avg_time_ms": round(avg_time_ms, 3),
-            "avg_branches": round(avg_branches, 1)
+            "avg_matrices": round(avg_matrices, 1)
         }
         attack_results.append(row)
-        print(f"{length:<15} | {known_prefix_len:<15} | {row['success_rate']:<15} | {avg_time_ms:<18.3f} | {avg_branches:<15.1f}")
+        print(f"{length:<15} | {known_prefix_len:<15} | {row['success_rate']:<15} | {avg_time_ms:<18.3f} | {avg_matrices:<15.1f}")
 
     return attack_results
 

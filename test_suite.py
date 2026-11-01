@@ -1,7 +1,7 @@
 """
-Comprehensive Test Suite for Custom Hybrid Classical Cipher
-Course: Network and Information Security (CT-486)
-CLO: Complex Computing Problem [CLO3]
+Comprehensive Test Suite for Vigenere + Hill Hybrid Classical Cipher
+Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
+Complex Computing Problem [CLO3]
 """
 
 import unittest
@@ -12,18 +12,18 @@ from attack import FrequencyAnalyzer, KnownPlaintextAttacker
 class TestCustomCipher(unittest.TestCase):
 
     def setUp(self):
-        self.sub_key = "CONFIDENTIAL"   # len 12 >= 10
-        self.trans_key = "ALGORITHMIC"   # len 11 >= 10
-        self.cipher = CustomHybridCipher(self.sub_key, self.trans_key)
+        self.vigenere_key = "CONFIDENTIALKEY"   # len 15 >= 10
+        self.hill_key = "HILLCIPHERKEY"         # len 13 >= 10
+        self.cipher = CustomHybridCipher(self.vigenere_key, self.hill_key)
         self.shift_cipher = ShiftCipher(shift=7)
 
     def test_key_length_validation(self):
         """Verify enforcement of key length >= 10 characters."""
         with self.assertRaises(ValueError):
-            CustomHybridCipher("SHORT", "ALGORITHMIC")
+            CustomHybridCipher("SHORT", "HILLCIPHERKEY")
 
         with self.assertRaises(ValueError):
-            CustomHybridCipher("CONFIDENTIAL", "TINY")
+            CustomHybridCipher("CONFIDENTIALKEY", "TINY")
 
         # Valid keys should not raise
         c = CustomHybridCipher("LONGKEYTEST1", "LONGKEYTEST2")
@@ -38,18 +38,18 @@ class TestCustomCipher(unittest.TestCase):
     def test_roundtrip_various_lengths(self):
         """Test encryption and decryption round-trip across varying message sizes."""
         test_messages = [
-            "SECRET",                               # very short (< key len)
-            "CONFIDENTIALDATA",                     # medium
-            "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG",  # standard pangram
+            "SECRETDATA",                           # even length
+            "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG",  # standard pangram (odd length -> padded)
             "A" * 150,                              # repetitive sequence
             "NETWORKSECURITYANDINFORMATIONASSURANCE" * 10  # long message (380 chars)
         ]
 
         for msg in test_messages:
             cleaned = clean_text(msg)
+            expected = cleaned if len(cleaned) % 2 == 0 else cleaned + 'X'
             ciphertext = self.cipher.encrypt(msg)
             decrypted = self.cipher.decrypt(ciphertext)
-            self.assertEqual(decrypted, cleaned, f"Failed round-trip for message: {msg[:20]}...")
+            self.assertEqual(decrypted, expected, f"Failed round-trip for message: {msg[:20]}...")
 
     def test_shift_cipher_roundtrip(self):
         """Verify single-stage shift cipher baseline."""
@@ -77,18 +77,18 @@ class TestCustomCipher(unittest.TestCase):
             "COMMUNICATIONRELAYSTATIONSTHROUGHOUTTHEENTIRENATIONALGRID"
         )
         ciphertext = self.cipher.encrypt(secret_message)
-        known_prefix = secret_message[:35]  # first 35 chars known
+        known_prefix = secret_message[:36]  # 36 chars known (covers 2+ periods)
 
         attack_result = KnownPlaintextAttacker.attack(
             ciphertext=ciphertext,
             known_prefix=known_prefix,
-            trans_key_len=len(self.trans_key),
-            sub_key_len=len(self.sub_key)
+            vigenere_key_len=len(self.vigenere_key)
         )
 
         self.assertTrue(attack_result["success"])
-        self.assertEqual(attack_result["recovered_sub_key"], self.sub_key)
-        self.assertEqual(attack_result["recovered_full_plaintext"], secret_message)
+        self.assertEqual(attack_result["recovered_vigenere_key"], self.vigenere_key)
+        expected_full = secret_message if len(secret_message) % 2 == 0 else secret_message + 'X'
+        self.assertEqual(attack_result["recovered_full_plaintext"], expected_full)
 
 
 if __name__ == "__main__":

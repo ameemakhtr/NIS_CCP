@@ -1,8 +1,13 @@
 """
 Main Interactive Console Application
-Course: Network and Information Security (CT-486)
+Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
 CLO: Complex Computing Problem [CLO3]
 Project: Design and Break a Custom Cipher Based on Classical Techniques
+
+Techniques Selected from Course Syllabus:
+- 3-Vigenere-Cipher.pdf (Stage 1: Polyalphabetic Substitution - Confusion)
+- 7-Hill-Ciphers.pdf    (Stage 2: Polygraphic Block Linear Algebra - Diffusion)
+- 2-Shift-Cipher.pdf    (Baseline Comparison)
 """
 
 import sys
@@ -18,9 +23,10 @@ def print_banner():
   NETWORK AND INFORMATION SECURITY (CT-486) - COMPLEX COMPUTING PROBLEM
   DESIGN AND BREAK A CUSTOM CIPHER BASED ON CLASSICAL TECHNIQUES [CLO3]
 ========================================================================
-  [+] Stage 1: Polyalphabetic Substitution (Vigenere Cipher) - Confusion
-  [+] Stage 2: Permutation (Keyed Columnar Transposition)   - Diffusion
-  [+] Minimum Key Length: >= 10 characters
+  [+] Stage 1: Polyalphabetic Substitution (Vigenere Cipher) [Confusion]
+  [+] Stage 2: Polygraphic Block Transformation (Hill Cipher) [Diffusion]
+  [+] Baseline Comparison: Shift (Caesar) Cipher
+  [+] Enforced Minimum Key Length: >= 10 characters
 ========================================================================
 """)
 
@@ -28,13 +34,15 @@ def print_banner():
 def run_full_walkthrough():
     print("\n>>> EXECUTING AUTOMATED COMPREHENSIVE WALKTHROUGH <<<\n")
 
-    sub_key = "CRYPTOGRAPHYKEY"   # 15 chars
-    trans_key = "ALGORITHMIC"     # 11 chars
-    print(f"[*] Initializing Custom Hybrid Cipher:")
-    print(f"    - Substitution Key   (Stage 1) : '{sub_key}' (Length: {len(sub_key)})")
-    print(f"    - Transposition Key  (Stage 2) : '{trans_key}' (Length: {len(trans_key)})")
+    vigenere_key = "CRYPTOGRAPHYKEY"   # 15 chars
+    hill_key = "HILLCIPHERKEY"         # 13 chars
+    print(f"[*] Initializing Custom Hybrid Cipher (Vigenere + Hill):")
+    print(f"    - Stage 1 Vigenere Key : '{vigenere_key}' (Length: {len(vigenere_key)})")
+    print(f"    - Stage 2 Hill Key     : '{hill_key}' (Length: {len(hill_key)})")
 
-    cipher = CustomHybridCipher(sub_key, trans_key)
+    cipher = CustomHybridCipher(vigenere_key, hill_key)
+    print(f"    - Generated 2x2 Hill Key Matrix: {cipher.hill_mat[:2]}")
+    print(f"                                     {cipher.hill_mat[2:]}")
 
     sample_message = (
         "CONFIDENTIALCOMMUNICATIONFORNETWORKSECURITYOFFICERS"
@@ -53,7 +61,8 @@ def run_full_walkthrough():
     decrypted = cipher.decrypt(ciphertext)
     print(f"    Decrypted Plaintext:")
     print(f"    \"{decrypted}\"")
-    match = (decrypted == clean_text(sample_message))
+    expected = sample_message if len(sample_message) % 2 == 0 else sample_message + 'X'
+    match = (decrypted == expected)
     print(f"    Integrity Verification (Original == Decrypted): {match}")
 
     print(f"\n[3] STATISTICAL & FREQUENCY ANALYSIS:")
@@ -64,31 +73,31 @@ def run_full_walkthrough():
     print(f"    - Ciphertext Chi-Squared Statistic     : {stats['ciphertext_chi_sq']:.2f}")
     print(f"    - Top 5 Plaintext Letters              : {stats['top_plaintext_letters']}")
     print(f"    - Top 5 Ciphertext Letters             : {stats['top_ciphertext_letters']}")
-    print("    => Key Takeaway: The hybrid cipher successfully flattens monographic frequencies,")
-    print("       preventing direct single-letter substitution attacks.")
+    print("    => Key Takeaway: The hybrid cipher combines polyalphabetic and polygraphic shifts,")
+    print("       thwarting direct single-letter frequency attacks.")
 
     print(f"\n[4] KNOWN-PLAINTEXT ATTACK (KPA) SIMULATION:")
-    known_prefix_len = 35
+    known_prefix_len = 36
     known_prefix = sample_message[:known_prefix_len]
     print(f"    - Intercepted Ciphertext Length: {len(ciphertext)} chars")
     print(f"    - Known Plaintext Segment (First {known_prefix_len} chars):")
     print(f"      \"{known_prefix}\"")
-    print("    - Launching constraint-guided branch-and-bound cryptanalysis...")
+    print("    - Launching algebraic periodic constraint cryptanalysis...")
 
     attack_res = KnownPlaintextAttacker.attack(
         ciphertext=ciphertext,
         known_prefix=known_prefix,
-        trans_key_len=len(trans_key),
-        sub_key_len=len(sub_key)
+        vigenere_key_len=len(vigenere_key)
     )
 
     if attack_res["success"]:
         print(f"    [+] ATTACK SUCCEEDED in {attack_res['elapsed_seconds'] * 1000.0:.3f} ms!")
-        print(f"    [+] Branches Evaluated: {attack_res['branch_evaluations']}")
-        print(f"    [+] Recovered Substitution Key: '{attack_res['recovered_sub_key']}'")
+        print(f"    [+] Matrices Evaluated: {attack_res['matrices_evaluated']}")
+        print(f"    [+] Recovered 2x2 Hill Matrix: {attack_res['recovered_hill_mat']}")
+        print(f"    [+] Recovered Vigenere Key   : '{attack_res['recovered_vigenere_key']}'")
         print(f"    [+] Full Plaintext Message Recovered:")
         print(f"        \"{attack_res['recovered_full_plaintext']}\"")
-        exact_recovery = (attack_res['recovered_full_plaintext'] == sample_message)
+        exact_recovery = (attack_res['recovered_full_plaintext'] == expected)
         print(f"    [+] Full Message Exact Match: {exact_recovery}")
     else:
         print("    [-] Attack failed to find consistent key within limits.")
@@ -112,10 +121,10 @@ def interactive_menu():
         if choice == "1":
             run_full_walkthrough()
         elif choice == "2":
-            sub_key = input("Enter Substitution Key (>=10 chars) [Default: CRYPTOGRAPHYKEY]: ").strip() or "CRYPTOGRAPHYKEY"
-            trans_key = input("Enter Transposition Key (>=10 chars) [Default: ALGORITHMIC]: ").strip() or "ALGORITHMIC"
+            vig_key = input("Enter Vigenere Key (>=10 chars) [Default: CRYPTOGRAPHYKEY]: ").strip() or "CRYPTOGRAPHYKEY"
+            hill_key = input("Enter Hill Key Phrase (>=10 chars) [Default: HILLCIPHERKEY]: ").strip() or "HILLCIPHERKEY"
             try:
-                c = CustomHybridCipher(sub_key, trans_key)
+                c = CustomHybridCipher(vig_key, hill_key)
                 text = input("Enter plaintext to encrypt: ").strip()
                 if not text:
                     print("Empty input!")
@@ -127,22 +136,23 @@ def interactive_menu():
             except Exception as e:
                 print(f"Error: {e}")
         elif choice == "3":
-            sub_key = input("Enter Substitution Key (>=10 chars) [Default: SECURITYANALYSIS]: ").strip() or "SECURITYANALYSIS"
-            trans_key = input("Enter Transposition Key (>=10 chars) [Default: PERMUTATION]: ").strip() or "PERMUTATION"
+            vig_key = input("Enter Vigenere Key (>=10 chars) [Default: SECURITYPROTOCOL]: ").strip() or "SECURITYPROTOCOL"
+            hill_key = input("Enter Hill Key Phrase (>=10 chars) [Default: HILLCIPHERKEY]: ").strip() or "HILLCIPHERKEY"
             try:
-                c = CustomHybridCipher(sub_key, trans_key)
+                c = CustomHybridCipher(vig_key, hill_key)
                 text = input("Enter target plaintext (>= 50 chars): ").strip()
                 if len(clean_text(text)) < 40:
                     print("Please enter a longer message (at least 40 alphabetic characters)!")
                     continue
                 ct = c.encrypt(text)
                 print(f"Ciphertext: {ct}")
-                known_len = int(input(f"Enter known prefix length (suggested 30-40) [Default: 35]: ").strip() or "35")
+                known_len = int(input(f"Enter known prefix length (suggested >= 32) [Default: 36]: ").strip() or "36")
                 known_p = clean_text(text)[:known_len]
                 print(f"Attacking with known prefix: '{known_p}'...")
-                res = KnownPlaintextAttacker.attack(ct, known_p, len(clean_text(trans_key)), len(clean_text(sub_key)))
+                res = KnownPlaintextAttacker.attack(ct, known_p, len(clean_text(vig_key)))
                 if res["success"]:
-                    print(f"\n[+] Recovered Key: {res['recovered_sub_key']}")
+                    print(f"\n[+] Recovered Hill Matrix: {res['recovered_hill_mat']}")
+                    print(f"[+] Recovered Vigenere Key: {res['recovered_vigenere_key']}")
                     print(f"[+] Recovered Plaintext: {res['recovered_full_plaintext']}")
                     print(f"[+] Time: {res['elapsed_seconds'] * 1000:.2f} ms")
                 else:

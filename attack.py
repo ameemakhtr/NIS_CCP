@@ -1,19 +1,17 @@
 """
 Security Analysis and Attack Simulation Module
-Course: Network and Information Security (CT-486)
-CLO: Complex Computing Problem [CLO3]
+Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
+Complex Computing Problem [CLO3]
 
-Provides:
-1. Frequency Analysis & Index of Coincidence (IoC) evaluation vs. English standards.
-2. Automated Known-Plaintext Attack (KPA) Engine using branch-and-bound constraint solver.
+Cryptanalytic Techniques:
+1. Frequency Analysis & Index of Coincidence (IoC) against English baseline.
+2. Known-Plaintext Attack (KPA) against Vigenere + Hill Hybrid Cipher.
 """
 
-import itertools
-import math
 import time
 from collections import Counter
 from typing import Dict, List, Tuple, Optional, Any
-from custom_cipher import clean_text, CustomHybridCipher
+from custom_cipher import clean_text, modinv, CustomHybridCipher
 
 # Standard English letter frequencies (percentage)
 ENGLISH_FREQ = {
@@ -31,7 +29,7 @@ RANDOM_IC = 0.0385   # Index of Coincidence for uniform random text
 
 class FrequencyAnalyzer:
     """
-    Performs monographic frequency distribution and Index of Coincidence (IoC) calculations.
+    Performs letter frequency distribution and Index of Coincidence (IoC) calculations.
     """
 
     @staticmethod
@@ -107,17 +105,17 @@ class FrequencyAnalyzer:
 
 class KnownPlaintextAttacker:
     """
-    Simulates a Known-Plaintext Attack (KPA) against the Custom Hybrid Cipher.
+    Simulates Known-Plaintext Attack (KPA) against the Vigenere + Hill Hybrid Cipher.
     
     Attack Scenario:
     The adversary captures full ciphertext C and possesses a known segment of the
-    original plaintext P_known (e.g. from the start of the message, common headers,
-    standard protocol preamble).
+    original plaintext P_known (e.g., standard protocol header or greeting).
     
-    Reconstructs:
-    1. Transposition column assignments.
-    2. Vigenère keyword.
-    3. Complete plaintext message for the remainder of the ciphertext.
+    Recovery Mechanism:
+    Evaluates invertible 2x2 Hill matrices modulo 26.
+    Inverts candidate Hill transformations on known ciphertext prefix and checks for
+    strict keystream periodicity of length L_V (Vigenere period).
+    Recovers both the Hill matrix and the Vigenere key, then decrypts the full message.
     """
 
     @classmethod
@@ -125,161 +123,123 @@ class KnownPlaintextAttacker:
         cls,
         ciphertext: str,
         known_prefix: str,
-        trans_key_len: int,
-        sub_key_len: int,
-        max_branch_evals: int = 500000
+        vigenere_key_len: int,
+        target_hill_mat: Optional[Tuple[int, int, int, int]] = None
     ) -> Dict[str, Any]:
         """
-        Executes Known-Plaintext Attack using constraint-guided backtracking.
+        Executes Known-Plaintext Attack.
         
         Args:
-            ciphertext: Intercepted ciphertext string.
-            known_prefix: Known plaintext prefix string (at least 2.5 * trans_key_len).
-            trans_key_len: Candidate columnar transposition width (>= 10).
-            sub_key_len: Candidate Vigenère key length (>= 10).
-            max_branch_evals: Guard against infinite loops.
+            ciphertext: Full intercepted ciphertext.
+            known_prefix: Known plaintext segment (must cover at least 2 * vigenere_key_len).
+            vigenere_key_len: Length of Vigenere key (>= 10).
+            target_hill_mat: Optional hint to fast-path or search around target matrix.
         """
         start_time = time.perf_counter()
         c_clean = clean_text(ciphertext)
         p_clean = clean_text(known_prefix)
 
-        W = trans_key_len
-        L_sub = sub_key_len
-        total_len = len(c_clean)
-        known_len = len(p_clean)
+        L_V = vigenere_key_len
+        c_nums = [ord(c) - 65 for c in c_clean]
+        p_nums = [ord(c) - 65 for c in p_clean]
 
-        if known_len < W:
-            raise ValueError(f"Known prefix must be at least {W} characters to establish initial constraints!")
+        # Use an even length for block processing
+        known_even_len = (len(p_nums) // 2) * 2
+        p_prefix = p_nums[:known_even_len]
+        c_prefix = c_nums[:known_even_len]
 
-        num_full = total_len // W
-        rem = total_len % W
-
-        branch_evaluations = 0
+        matrices_evaluated = 0
         found = False
-        recovered_result = None
+        recovered_hill = None
+        recovered_vigenere_key = None
 
-        # Slices partitioning:
-        # In the ciphertext, exactly 'rem' slices have length (num_full + 1),
-        # and (W - rem) slices have length num_full.
-        # We test combinations of slice indices that have length (num_full + 1).
-        comb_generator = itertools.combinations(range(W), rem) if rem > 0 else [()]
+        # Loop through candidate 2x2 matrices
+        for a in range(26):
+            for b in range(26):
+                for c_val in range(26):
+                    for d in range(26):
+                        matrices_evaluated += 1
+                        det = (a * d - b * c_val) % 26
+                        inv_d = modinv(det, 26)
+                        if inv_d is None:
+                            continue
 
-        for long_slice_indices in comb_generator:
-            slice_lengths = [num_full + 1 if i in long_slice_indices else num_full for i in range(W)]
-            slices = []
-            curr = 0
-            for l in slice_lengths:
-                slices.append(c_clean[curr:curr + l])
-                curr += l
+                        # Candidate inverse matrix
+                        ia = (inv_d * d) % 26
+                        ib = (inv_d * (-b)) % 26
+                        ic = (inv_d * (-c_val)) % 26
+                        id_val = (inv_d * a) % 26
 
-            slices_used = [False] * W
-            key_array = [None] * L_sub
-            col_to_slice = [None] * W
+                        # Invert Hill on known blocks and check Vigenere keystream periodicity
+                        consistent = True
+                        keystream = [None] * L_V
 
-            def dfs(col: int) -> bool:
-                nonlocal branch_evaluations
-                if col == W:
-                    return True
+                        for b_idx in range(0, known_even_len, 2):
+                            y1, y2 = c_prefix[b_idx], c_prefix[b_idx + 1]
+                            x1 = (y1 * ia + y2 * ic) % 26
+                            x2 = (y1 * ib + y2 * id_val) % 26
 
-                branch_evaluations += 1
-                if branch_evaluations > max_branch_evals:
-                    return False
-
-                # Column c has length (num_full + 1) if c < rem else num_full
-                req_len = num_full + 1 if col < rem else num_full
-                known_rows = [r for r in range(req_len) if r * W + col < known_len]
-
-                for s_idx in range(W):
-                    if slices_used[s_idx] or slice_lengths[s_idx] != req_len:
-                        continue
-
-                    candidate_slice = slices[s_idx]
-                    compatible = True
-                    newly_set_keys = []
-
-                    # Verify key consistency against known plaintext positions
-                    for r in known_rows:
-                        idx = r * W + col
-                        p_ch = p_clean[idx]
-                        c_ch = candidate_slice[r]
-                        # In Stage 1: C_1 = (P + K) mod 26  ==>  K = (C_1 - P) mod 26
-                        k_val = (ord(c_ch) - ord(p_ch)) % 26
-                        k_pos = idx % L_sub
-
-                        if key_array[k_pos] is not None:
-                            if key_array[k_pos] != k_val:
-                                compatible = False
+                            # Check element 1
+                            k1 = (x1 - p_prefix[b_idx]) % 26
+                            kpos1 = b_idx % L_V
+                            if keystream[kpos1] is not None and keystream[kpos1] != k1:
+                                consistent = False
                                 break
-                        else:
-                            key_array[k_pos] = k_val
-                            newly_set_keys.append(k_pos)
+                            keystream[kpos1] = k1
 
-                    if compatible:
-                        slices_used[s_idx] = True
-                        col_to_slice[col] = s_idx
+                            # Check element 2
+                            k2 = (x2 - p_prefix[b_idx + 1]) % 26
+                            kpos2 = (b_idx + 1) % L_V
+                            if keystream[kpos2] is not None and keystream[kpos2] != k2:
+                                consistent = False
+                                break
+                            keystream[kpos2] = k2
 
-                        if dfs(col + 1):
-                            return True
-
-                        # Backtrack
-                        slices_used[s_idx] = False
-                        col_to_slice[col] = None
-
-                    for k_pos in newly_set_keys:
-                        key_array[k_pos] = None
-
-                return False
-
-            if dfs(0):
-                found = True
-                recovered_result = (list(col_to_slice), list(key_array), slices)
+                        if consistent and all(k is not None for k in keystream):
+                            found = True
+                            recovered_hill = (a, b, c_val, d, (ia, ib, ic, id_val))
+                            recovered_vigenere_key = "".join(chr(k + 65) for k in keystream)
+                            break
+                    if found:
+                        break
+                if found:
+                    break
+            if found:
                 break
 
         elapsed = time.perf_counter() - start_time
 
-        if not found or not recovered_result:
+        if not found or not recovered_hill:
             return {
                 "success": False,
                 "elapsed_seconds": elapsed,
-                "branch_evaluations": branch_evaluations,
-                "recovered_sub_key": None,
+                "matrices_evaluated": matrices_evaluated,
+                "recovered_hill_mat": None,
+                "recovered_vigenere_key": None,
                 "recovered_full_plaintext": None,
             }
 
-        rec_col_to_slice, rec_key, rec_slices = recovered_result
+        ia, ib, ic, id_val = recovered_hill[4]
 
-        # Reconstruct full Vigenère key
-        # In case some positions were not covered by known_len, fill from recovered pattern
-        recovered_key_str = "".join(
-            chr(k + 65) if k is not None else "?" for k in rec_key
-        )
+        # Decrypt full ciphertext using recovered parameters
+        full_intermediate = []
+        for b_idx in range(0, len(c_nums), 2):
+            y1, y2 = c_nums[b_idx], c_nums[b_idx + 1]
+            x1 = (y1 * ia + y2 * ic) % 26
+            x2 = (y1 * ib + y2 * id_val) % 26
+            full_intermediate.extend([x1, x2])
 
-        # Reconstruct intermediate text
-        max_rows = num_full + (1 if rem > 0 else 0)
-        reconstructed_intermediate = []
-        for r in range(max_rows):
-            for c_idx in range(W):
-                s_idx = rec_col_to_slice[c_idx]
-                s = rec_slices[s_idx]
-                if r < len(s):
-                    reconstructed_intermediate.append(s[r])
-        intermediate_str = "".join(reconstructed_intermediate)
-
-        # Decrypt full message with recovered key
-        recovered_full_pt = []
-        for i, ch in enumerate(intermediate_str):
-            k_char = rec_key[i % L_sub]
-            if k_char is not None:
-                orig_c = chr((ord(ch) - 65 - k_char) % 26 + 65)
-                recovered_full_pt.append(orig_c)
-            else:
-                recovered_full_pt.append("?")
+        full_plaintext = []
+        for i, val in enumerate(full_intermediate):
+            shift = ord(recovered_vigenere_key[i % L_V]) - 65
+            p_val = (val - shift) % 26
+            full_plaintext.append(chr(p_val + 65))
 
         return {
             "success": True,
             "elapsed_seconds": elapsed,
-            "branch_evaluations": branch_evaluations,
-            "recovered_col_mapping": rec_col_to_slice,
-            "recovered_sub_key": recovered_key_str,
-            "recovered_full_plaintext": "".join(recovered_full_pt),
+            "matrices_evaluated": matrices_evaluated,
+            "recovered_hill_mat": recovered_hill[:4],
+            "recovered_vigenere_key": recovered_vigenere_key,
+            "recovered_full_plaintext": "".join(full_plaintext),
         }
