@@ -367,14 +367,14 @@ def build_pdf():
     story.append(Spacer(1, 4))
 
     attack_table_data = [
-        ["Ciphertext Length", "Known Plaintext", "Attack Method", "Key Recovery Time", "Success Rate", "Verification"],
-        ["100 Chars", "4 Chars (2 pairs)", "KPA Matrix Inversion", "18.5 ms", "92.0%", "Exact Match"],
-        ["500 Chars", "6 Chars (3 pairs)", "KPA Matrix Inversion", "24.2 ms", "97.5%", "Exact Match"],
-        ["1,000 Chars", "10 Chars (Full Key)", "KPA Matrix Inversion", "42.1 ms", "100.0%", "Exact Match"],
-        ["5,000 Chars", "20 Chars (Redundant)", "KPA Matrix Inversion", "78.4 ms", "100.0%", "Exact Match"],
-        ["10,000 Chars", "100 Chars (Redundant)", "KPA Matrix Inversion", "215.0 ms", "100.0%", "Exact Match"]
+        ["Ciphertext Length", "Known Plaintext", "Attack Method", "Key Recovery Time", "Success Rate"],
+        ["100 Chars", "4 Chars (2 pairs)", "KPA Matrix Inversion", "18.5 ms", "92.0%"],
+        ["500 Chars", "6 Chars (3 pairs)", "KPA Matrix Inversion", "24.2 ms", "97.5%"],
+        ["1,000 Chars", "10 Chars (Full Key)", "KPA Matrix Inversion", "42.1 ms", "100.0%"],
+        ["5,000 Chars", "20 Chars (Redundant)", "KPA Matrix Inversion", "78.4 ms", "100.0%"],
+        ["10,000 Chars", "100 Chars (Redundant)", "KPA Matrix Inversion", "215.0 ms", "100.0%"]
     ]
-    t_atk = Table(attack_table_data, colWidths=[1.1*inch, 1.25*inch, 1.35*inch, 1.05*inch, 0.85*inch, 0.9*inch])
+    t_atk = Table(attack_table_data, colWidths=[1.3*inch, 1.4*inch, 1.5*inch, 1.2*inch, 1.1*inch])
     t_atk.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
