@@ -44,8 +44,10 @@ class NumberedCanvas(canvas.Canvas):
             self.drawString(54, 34, "Department of Computer Science & IT, NED University")
             self.restoreState()
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def build_pdf():
-    pdf_filename = "d:/NIS_CCP/Complex_Computing_Problem_Report.pdf"
+    pdf_filename = os.path.join(SCRIPT_DIR, "Complex_Computing_Problem_Report.pdf")
     doc = SimpleDocTemplate(
         pdf_filename,
         pagesize=letter,
@@ -172,7 +174,7 @@ def build_pdf():
     story.append(Spacer(1, 24))
 
     # NED Logo
-    logo_path = "d:/NIS_CCP/ned_logo_1.png"
+    logo_path = os.path.join(SCRIPT_DIR, "ned_logo_1.png")
     if os.path.exists(logo_path):
         story.append(RLImage(logo_path, width=2.0*inch, height=2.0*inch))
     story.append(Spacer(1, 24))
@@ -332,7 +334,7 @@ def build_pdf():
     story.append(Spacer(1, 3))
 
     # Figure 1 Insertion
-    plot1_path = "d:/NIS_CCP/frequency_ioc_analysis.png"
+    plot1_path = os.path.join(SCRIPT_DIR, "frequency_ioc_analysis.png")
     if os.path.exists(plot1_path):
         story.append(RLImage(plot1_path, width=6.5*inch, height=2.65*inch))
         story.append(Paragraph("<font size=7.5><i>Figure 1: Statistical Letter Frequency Distribution and Index of Coincidence (IoC) Benchmarks across Cipher Primitives</i></font>", body_style))
@@ -428,7 +430,7 @@ def build_pdf():
     story.append(Spacer(1, 3))
 
     # Figure 2 Insertion (tight height to guarantee perfect page fit)
-    plot2_path = "d:/NIS_CCP/benchmark_comparison.png"
+    plot2_path = os.path.join(SCRIPT_DIR, "benchmark_comparison.png")
     if os.path.exists(plot2_path):
         story.append(RLImage(plot2_path, width=6.5*inch, height=2.2*inch))
         story.append(Paragraph("<font size=7.5><i>Figure 2: Empirical Encryption Latency Scaling vs Message Size and KPA Solver Recovery Latencies</i></font>", body_style))

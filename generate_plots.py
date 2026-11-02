@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Set professional academic styling
 plt.rcParams['font.family'] = 'serif'
@@ -55,7 +58,7 @@ ax2.set_ylim(0, 0.08)
 ax2.grid(axis='y', linestyle='--', alpha=0.4)
 ax2.legend(loc='upper right', framealpha=0.9, fontsize=7)
 
-plt.savefig('d:/NIS_CCP/frequency_ioc_analysis.png', bbox_inches='tight')
+plt.savefig(os.path.join(SCRIPT_DIR, 'frequency_ioc_analysis.png'), bbox_inches='tight')
 plt.close()
 
 # -------------------------------------------------------------
@@ -90,7 +93,7 @@ ax4.set_ylabel('Key Recovery Time (ms)')
 ax4.set_ylim(0, 260)
 ax4.grid(axis='y', linestyle='--', alpha=0.4)
 
-plt.savefig('d:/NIS_CCP/benchmark_comparison.png', bbox_inches='tight')
+plt.savefig(os.path.join(SCRIPT_DIR, 'benchmark_comparison.png'), bbox_inches='tight')
 plt.close()
 
 print("Plots successfully generated: frequency_ioc_analysis.png, benchmark_comparison.png")
