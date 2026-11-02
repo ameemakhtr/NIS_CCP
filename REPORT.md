@@ -188,8 +188,9 @@ All project source files are hosted in the public GitHub repository:
 * `attack.py`: Frequency analysis and Known-Plaintext Attack solver.
 * `benchmark.py`: Empirical timing and complexity benchmarking suite.
 * `test_suite.py`: Automated unit tests.
-* `live_test.py`: Custom message live demonstration script.
 * `main.py`: Interactive CLI application (`python main.py --demo`).
+* `build_report_pdf.py`: Academic PDF report generation engine.
+* `Complex_Computing_Problem_Report.pdf`: Formal PDF report.
 
 **Execution Command:**
 ```bash
