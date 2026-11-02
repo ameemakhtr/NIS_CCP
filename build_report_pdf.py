@@ -212,7 +212,7 @@ def build_pdf():
         body_style
     ))
     story.append(Paragraph(
-        "<b>Project Focus:</b> This project addresses the <b>CT-486 Complex Computing Problem</b> by designing, implementing, and cryptanalyzing a high-throughput, two-stage hybrid classical cipher. The architecture synthesizes a <b>polyalphabetic Vigenère substitution</b> with a <b>2 &times; 2 polygraphic Hill linear transformation</b> over &Zopf;<sub>26</sub>. The cipher requires a composite key string of length &ge; 10 characters (default: <font face='Courier'>AUTONOMOUS</font>, 10 letters) to establish strong periodic shifting and derive an invertible key matrix in the General Linear Group <i>GL</i>(2, &Zopf;<sub>26</sub>).",
+        "<b>Project Focus:</b> This project addresses the <b>CT-486 Complex Computing Problem</b> by designing, implementing, and cryptanalyzing a high-throughput, two-stage hybrid classical cipher. The architecture synthesizes a <b>polyalphabetic Vigenere substitution</b> with a <b>2 &times; 2 polygraphic Hill linear transformation</b> over &Zopf;<sub>26</sub>. The cipher requires a composite key string of length &ge; 10 characters (default: <font face='Courier'>AUTONOMOUS</font>, 10 letters) to establish strong periodic shifting and derive an invertible key matrix in the General Linear Group <i>GL</i>(2, &Zopf;<sub>26</sub>).",
         body_style
     ))
     story.append(Paragraph(
@@ -221,7 +221,7 @@ def build_pdf():
     ))
 
     eq_box1 = [
-        [Paragraph("<font face='Courier' size=8.5><b>Stage 1 (Vigenère Substitution):   C<sub>1</sub>[i] = (P[i] + K<sub>vig</sub>[i mod L]) mod 26</b></font>", body_style)],
+        [Paragraph("<font face='Courier' size=8.5><b>Stage 1 (Vigenere Substitution):   C<sub>1</sub>[i] = (P[i] + K<sub>vig</sub>[i mod L]) mod 26</b></font>", body_style)],
         [Paragraph("<font face='Courier' size=8.5><b>Stage 2 (Hill Linear Transform):    [C[2j], C[2j+1]]<sup>T</sup> = K<sub>hill</sub> &middot; [C<sub>1</sub>[2j], C<sub>1</sub>[2j+1]]<sup>T</sup> mod 26</b></font>", body_style)]
     ]
     t_eq = Table(eq_box1, colWidths=[6.5*inch])
@@ -324,7 +324,7 @@ def build_pdf():
     story.append(Spacer(1, 8))
     story.append(Paragraph("3. Security Analysis & Statistical Evaluation", section_heading))
     story.append(Paragraph(
-        "<b>Shannon's Confusion & Diffusion:</b> Stage 1 (Vigenère) provides <i>Confusion</i> by shifting each character across 10 distinct alphabets, obscuring direct 1-to-1 letter correspondences. Stage 2 (Hill) introduces <i>Diffusion</i> by entangling adjacent characters into 2D linear combinations, so modifying one plaintext character alters both characters in the resulting digram.",
+        "<b>Shannon's Confusion & Diffusion:</b> Stage 1 (Vigenere) provides <i>Confusion</i> by shifting each character across 10 distinct alphabets, obscuring direct 1-to-1 letter correspondences. Stage 2 (Hill) introduces <i>Diffusion</i> by entangling adjacent characters into 2D linear combinations, so modifying one plaintext character alters both characters in the resulting digram.",
         body_style
     ))
     story.append(Paragraph(
@@ -357,11 +357,11 @@ def build_pdf():
     ))
     story.append(Paragraph("<b>Algebraic Formulation of Known-Plaintext Attack:</b>", sub_heading))
     story.append(Paragraph(
-        "Given intercepted ciphertext digrams <b>C</b> and corresponding known plaintext digrams <b>P</b>: <b>C</b> = <b>K</b><sub>hill</sub> &middot; (<b>P</b> + <b>K</b><sub>vig</sub>) mod 26. When known plaintext spans &ge; <i>L</i> characters (where <i>L</i> = 10 is the key length), difference vectors between digrams separated by key period <i>L</i> eliminate the constant Vigenère term: &Delta;<b>C</b> &equiv; <b>K</b><sub>hill</sub> &middot; &Delta;<b>P</b> (mod 26).",
+        "Given intercepted ciphertext digrams <b>C</b> and corresponding known plaintext digrams <b>P</b>: <b>C</b> = <b>K</b><sub>hill</sub> &middot; (<b>P</b> + <b>K</b><sub>vig</sub>) mod 26. When known plaintext spans &ge; <i>L</i> characters (where <i>L</i> = 10 is the key length), difference vectors between digrams separated by key period <i>L</i> eliminate the constant Vigenere term: &Delta;<b>C</b> &equiv; <b>K</b><sub>hill</sub> &middot; &Delta;<b>P</b> (mod 26).",
         body_style
     ))
     story.append(Paragraph(
-        "By taking two linearly independent difference vectors such that gcd(det(&Delta;<b>P</b>), 26) = 1, the attacker solves <b>K</b><sub>hill</sub> directly: <b>K</b><sub>hill</sub> = &Delta;<b>C</b> &middot; (&Delta;<b>P</b>)<sup>-1</sup> mod 26. With <b>K</b><sub>hill</sub> recovered, the Vigenère key is extracted via: <b>K</b><sub>vig</sub>[i] = (<b>K</b><sub>hill</sub><sup>-1</sup> &middot; <b>C</b>[i] - <b>P</b>[i]) mod 26.",
+        "By taking two linearly independent difference vectors such that gcd(det(&Delta;<b>P</b>), 26) = 1, the attacker solves <b>K</b><sub>hill</sub> directly: <b>K</b><sub>hill</sub> = &Delta;<b>C</b> &middot; (&Delta;<b>P</b>)<sup>-1</sup> mod 26. With <b>K</b><sub>hill</sub> recovered, the Vigenere key is extracted via: <b>K</b><sub>vig</sub>[i] = (<b>K</b><sub>hill</sub><sup>-1</sup> &middot; <b>C</b>[i] - <b>P</b>[i]) mod 26.",
         body_style
     ))
     story.append(Spacer(1, 4))
