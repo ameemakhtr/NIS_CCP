@@ -84,7 +84,7 @@ def run_full_walkthrough(vigenere_key="CRYPTOGRAPHYKEY", hill_key="HILLCIPHERKEY
     print(f"    - Known Plaintext Segment (First {len(known_prefix)} chars):")
     print(f"      \"{known_prefix}\"")
     print("    - Vigenere key length treated as unknown (searching from 10 upward)")
-    print("    - Launching algebraic periodic constraint cryptanalysis...")
+    print("    - Launching search-based periodic constraint cryptanalysis...")
 
     attack_res = KnownPlaintextAttacker.attack(
         ciphertext=ciphertext,

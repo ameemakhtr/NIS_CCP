@@ -139,7 +139,7 @@ class KnownPlaintextAttacker:
         vigenere_key_len: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Executes Known-Plaintext Attack using algebraic periodic constraint propagation.
+        Executes Known-Plaintext Attack using search-based periodic constraint propagation.
         If vigenere_key_len is None the period is unknown and every feasible one is tried.
         """
         start_time = time.perf_counter()

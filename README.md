@@ -21,7 +21,7 @@ While individual classical ciphers (such as Caesar, Vigenère, or Hill) are triv
 This project implements a high-throughput, two-stage classical hybrid cipher combining:
 1. **Stage 1 (Polyalphabetic Substitution — Vigenère Cipher):** Masks monoalphabetic frequency spikes by cycling character shifts across a key of length ≥ 10 characters (enforcing strong Shannon *Confusion*).
 2. **Stage 2 (Polygraphic Block Transformation — 2 × 2 Hill Cipher):** Entangles adjacent characters in ℤ₂₆ via matrix transformation over the General Linear Group GL(2, ℤ₂₆) (enforcing Shannon *Diffusion* across digrams).
-3. **Cryptanalytic Attack Engine:** An automated solver simulating both ciphertext-only **Frequency Analysis (Index of Coincidence)** and an algebraic **Known-Plaintext Attack (KPA)** that recovers both keys and the full message without being told the key length.
+3. **Cryptanalytic Attack Engine:** An automated solver simulating both ciphertext-only **Frequency Analysis (Index of Coincidence)** and a search-based **Known-Plaintext Attack (KPA)** that recovers both keys and the full message without being told the key length.
 
 ---
 
@@ -197,6 +197,7 @@ Encryption and decryption are O(N) for both ciphers. The two-stage design costs 
 ### Prerequisites
 * Python 3.10+ (tested on Python 3.14)
 * Standard libraries (`reportlab` and `matplotlib` for regenerating reports/plots)
+* `benchmark.py` uses Python's bundled `pydoc_data` as its English sample. If your Python omits it, a short built-in text is repeated instead, so new letter statistics are less reliable than those in `results.json`.
 
 ```bash
 # Clone the repository

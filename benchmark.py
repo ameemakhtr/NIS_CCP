@@ -21,7 +21,6 @@ import statistics
 import string
 import time
 from typing import Dict, List
-from pydoc_data.topics import topics
 from custom_cipher import CustomHybridCipher, ShiftCipher, clean_text
 from attack import KnownPlaintextAttacker, FrequencyAnalyzer, ENGLISH_FREQ, _precompute_gl2
 
@@ -31,6 +30,11 @@ RESULTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results
 
 def english_corpus() -> str:
     """Real English prose: Python's bundled documentation (about 378,000 letters, no download)."""
+    try:
+        from pydoc_data.topics import topics
+    except ImportError:  # ponytail: repeated text skews letter statistics; attack and timing results are unaffected
+        print("pydoc_data not found: using bundled sample text, so letter statistics are less reliable.")
+        return generate_synthetic_english_text(50000)
     return clean_text(" ".join(topics.values()))
 
 

@@ -2,7 +2,7 @@ import json
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak, Preformatted, CondPageBreak
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak, Preformatted, CondPageBreak, KeepTogether
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -200,7 +200,7 @@ def build_pdf():
 
     story.append(Spacer(1, 34))
     story.append(Paragraph("<b>Submitted to:</b> Prof. Dr. Shariq Mahmood Khan (Professor, Department of CS & IT)", body_style))
-    story.append(Paragraph("<b>Submission Date:</b> November 02, 2026", body_style))
+    story.append(Paragraph("<b>Submission Date:</b> November 08, 2026", body_style))
     story.append(PageBreak())
 
     # Every measured figure below comes from results.json, written by benchmark.py
@@ -231,8 +231,7 @@ def build_pdf():
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#F8F9FA")])
         ]))
-        story.append(table)
-        story.append(Spacer(1, 5))
+        story.append(KeepTogether([table, Spacer(1, 5)]))
 
     def add_code(text):
         table = Table([[Preformatted(text, code_style)]], colWidths=[6.5*inch])
@@ -263,7 +262,7 @@ def build_pdf():
         "Stage 1 (Vigenere):  C1[i] = (P[i] + Kvig[i mod L]) mod 26\n"
         "Stage 2 (Hill):      [C[2j], C[2j+1]]^T = Khill * [C1[2j], C1[2j+1]]^T mod 26"
     )
-    add_text("Stage 2 can be undone only if gcd(det K<sub>hill</sub>, 26) = 1, that is, the determinant &Delta; = (ad - bc) mod 26 is neither even nor a multiple of 13. Decryption uses K<sub>hill</sub><sup>-1</sup> = &Delta;<sup>-1</sup> &middot; [[d, -b], [-c, a]] mod 26. There are |GL(2, Z<sub>26</sub>)| = 157,248 such matrices.")
+    add_text("Stage 2 can be undone only if gcd(det K<sub>hill</sub>, 26) = 1, that is, the determinant Delta = (ad - bc) mod 26 is neither even nor a multiple of 13. Decryption uses K<sub>hill</sub><sup>-1</sup> = Delta<sup>-1</sup> &middot; [[d, -b], [-c, a]] mod 26. There are |GL(2, Z<sub>26</sub>)| = 157,248 such matrices.")
 
     story.append(Paragraph("<b>How the Classical Techniques Are Combined</b>", sub_heading))
     bullets = [
@@ -426,7 +425,7 @@ def build_pdf():
         "<b>3. A non-repeating keystream.</b> Derive a different Vigenere key for each message from the main key and a per-message value. The periodicity check that rejects wrong matrices then has nothing to test.",
     ]:
         add_text(bullet, bullet_style)
-    add_text("Two changes that seem helpful are weak on their own. A longer Vigenere key only raises the known text needed (M &ge; L + 20). A larger Hill matrix leaves the system linear: subtracting blocks a whole number of key periods apart cancels the Vigenere term and gives &Delta;C = K<sub>hill</sub> &middot; &Delta;P, which can be solved with linear algebra rather than search.")
+    add_text("Two changes that seem helpful are weak on their own. A longer Vigenere key only raises the known text needed (M &ge; L + 20). A larger Hill matrix leaves the system linear: subtracting blocks a whole number of key periods apart cancels the Vigenere term and gives Delta C = K<sub>hill</sub> &middot; Delta P, which can be solved with linear algebra rather than search.")
     story.append(Paragraph("7. Code Submission", section_heading))
     add_text("The source code, tests and measurement scripts are at: <b><u>https://github.com/ameemakhtr/NIS_CCP</u></b>. Running <font face='Courier'>python benchmark.py</font> reproduces <font face='Courier'>results.json</font>, from which every table and figure above is generated.")
 

@@ -4,7 +4,10 @@ Course: Network and Information Security (CT-486) - Dr. Shariq Mahmood Khan
 Complex Computing Problem [CLO3]
 """
 
+import sys
 import unittest
+from unittest import mock
+import benchmark
 import server
 from custom_cipher import CustomHybridCipher, ShiftCipher, clean_text
 from attack import FrequencyAnalyzer, KnownPlaintextAttacker
@@ -160,6 +163,13 @@ class TestWebApi(unittest.TestCase):
         for route, data in bad_calls:
             with self.assertRaises(ValueError):
                 route(data)
+
+
+class TestBenchmarkCorpus(unittest.TestCase):
+    def test_missing_pydoc_data_falls_back_to_bundled_text(self):
+        with mock.patch.dict(sys.modules, {"pydoc_data.topics": None}):
+            corpus = benchmark.english_corpus()
+        self.assertGreater(len(corpus), 10000)  # longest benchmark message
 
 
 if __name__ == "__main__":
