@@ -310,7 +310,9 @@ function AttackSection({ result }) {
         {busy && <p className="empty">The Python attack is running.</p>}
         {outcome && !outcome.success && (
           <p className="explain">
-            The attack needs at least the key length plus 20 known letters, so it refused to guess with only {outcome.known_letters}. Move the slider up and run it again.
+            {result?.ciphertext === ciphertext && outcome.known_letters >= result.plaintext.length
+              ? `This message is too short to break. Different keys can fit its ${result.plaintext.length} letters, so the real key cannot be identified. Encrypt a message of at least ${result.vigenere_key.length + 21} letters and run the attack again.`
+              : `The attack needs at least the key length plus 20 known letters, so it refused to guess with only ${outcome.known_letters}. Provide more known letters and run it again.`}
           </p>
         )}
         {outcome?.success && (
