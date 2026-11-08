@@ -5,6 +5,7 @@ Complex Computing Problem [CLO3]
 """
 
 import unittest
+import server
 from custom_cipher import CustomHybridCipher, ShiftCipher, clean_text
 from attack import FrequencyAnalyzer, KnownPlaintextAttacker
 
@@ -129,6 +130,36 @@ class TestCustomCipher(unittest.TestCase):
         ciphertext = self.cipher.encrypt(message)
         for known in (4, 10, 16):
             self.assertFalse(KnownPlaintextAttacker.attack(ciphertext, message[:known])["success"])
+
+
+class TestWebApi(unittest.TestCase):
+    KEYS = {"vigenere_key": "CONFIDENTIALKEY", "hill_key": "HILLCIPHERKEY"}
+
+    def test_encrypt_decrypt_attack_flow(self):
+        """The UI's three calls agree with each other on a user-style message."""
+        message = "Hold the northern bridge until the convoy has crossed, then fall back."
+        sent = server.encrypt({**self.KEYS, "plaintext": message})
+        self.assertEqual(sent["decrypted"], clean_text(message))
+        self.assertEqual(server.decrypt({**self.KEYS, "ciphertext": sent["ciphertext"]})["plaintext"], clean_text(message))
+
+        broken = server.attack({"ciphertext": sent["ciphertext"], "known_plaintext": sent["plaintext"][:36]})
+        self.assertTrue(broken["success"])
+        self.assertEqual(broken["recovered_vigenere_key"], self.KEYS["vigenere_key"])
+        self.assertEqual(broken["recovered_full_plaintext"], clean_text(message))
+
+    def test_bad_input_is_rejected_cleanly(self):
+        bad_calls = [
+            (server.encrypt, {**self.KEYS, "plaintext": "12345"}),
+            (server.encrypt, {**self.KEYS, "plaintext": 7}),
+            (server.encrypt, {"vigenere_key": "SHORT", "hill_key": "HILLCIPHERKEY", "plaintext": "HI"}),
+            (server.decrypt, {**self.KEYS, "ciphertext": "ABC"}),
+            (server.attack, {"ciphertext": "ABC", "known_plaintext": "A"}),
+            (server.attack, {"ciphertext": "ABCD", "known_plaintext": "ABCDEF"}),
+            (server.attack, {"ciphertext": "ABCD", "known_plaintext": ""}),
+        ]
+        for route, data in bad_calls:
+            with self.assertRaises(ValueError):
+                route(data)
 
 
 if __name__ == "__main__":

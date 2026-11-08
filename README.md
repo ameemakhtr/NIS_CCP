@@ -207,6 +207,20 @@ cd NIS_CCP
 pip install -r requirements.txt
 ```
 
+### Web Interface
+
+The React interface calls the same Python cipher and attack code through a local server. Building it needs Node.js 20 or newer.
+
+```bash
+cd ui
+npm install
+npm run build
+cd ..
+python server.py
+```
+
+Then open http://127.0.0.1:8000. For live UI editing, keep `python server.py` running and use `npm run dev` inside `ui/`.
+
 ### Execution Commands
 
 ```bash
@@ -240,6 +254,8 @@ NIS_CCP/
 ├── test_suite.py                       # Automated unit tests
 ├── main.py                             # Interactive CLI & automated demo runner
 ├── false_match_experiment.py           # Shows why the attack needs key length + 20 known letters
+├── server.py                           # Local JSON API and host for the React interface
+├── ui/                                 # React interface (Vite)
 ├── results.json                        # Measured benchmark data used by the plots and report
 ├── generate_plots.py                   # Draws the report figures from results.json
 ├── build_report_pdf.py                 # Builds the PDF report from results.json
