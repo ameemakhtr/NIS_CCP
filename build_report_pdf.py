@@ -1,13 +1,15 @@
+import json
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak, Preformatted
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak, Preformatted, CondPageBreak
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 import pypdf
+from custom_cipher import CustomHybridCipher, add_padding
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -201,254 +203,232 @@ def build_pdf():
     story.append(Paragraph("<b>Submission Date:</b> November 02, 2026", body_style))
     story.append(PageBreak())
 
+    # Every measured figure below comes from results.json, written by benchmark.py
+    with open(os.path.join(SCRIPT_DIR, "results.json"), encoding="utf-8") as handle:
+        results = json.load(handle)
+    cipher_rows = results["ciphers"]
+    by_length = results["attack"]["by_length"]
+    by_known = results["attack"]["by_known"]
+    freq = results["frequency"]
+    stats = freq["ciphers"]
+    trials = by_length[0]["trials"]
+    at_1000 = next(row for row in cipher_rows if row["length"] == 1000)
+    full_recovery = [row for row in by_length if row["success_rate"] == 100.0]
+    typical_ms = sum(row["avg_time_ms"] for row in full_recovery) / len(full_recovery)
+    worst_ms = max(row["max_time_ms"] for row in full_recovery)
+    overheads = [row["custom_enc_ms"] / row["shift_enc_ms"] for row in cipher_rows]
+
+    def add_table(data, widths):
+        table = Table(data, colWidths=[w * inch for w in widths])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME', (0,0), (-1,0), 'Times-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 8.0),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#F8F9FA")])
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 5))
+
+    def add_code(text):
+        table = Table([[Preformatted(text, code_style)]], colWidths=[6.5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8F9FA")),
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#D1D8E0")),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 4))
+
+    def add_text(text, style=body_style):
+        story.append(Paragraph(text, style))
+
     # =========================================================
-    # PAGE 2: ABSTRACT & PROBLEM FORMULATION
+    # SECTION 1: PROBLEM AND DESIGN OVERVIEW
     # =========================================================
     story.append(Spacer(1, 8))
-    story.append(Paragraph("1. Abstract & Problem Formulation", section_heading))
-    
-    story.append(Paragraph(
-        "<b>Complex Computing Problem (CCP) Formulation:</b> In cryptography, a Complex Computing Problem (CLO3) requires engineering multi-layered cryptographic primitives that satisfy Shannon's core tenets of <i>Confusion</i> and <i>Diffusion</i> while maintaining strict algorithmic reversibility, linear computational efficiency, and empirical resistance against statistical attacks.",
-        body_style
-    ))
-    story.append(Paragraph(
-        "<b>Project Focus:</b> This project addresses the <b>CT-486 Complex Computing Problem</b> by designing, implementing, and cryptanalyzing a high-throughput, two-stage hybrid classical cipher. The architecture synthesizes a <b>polyalphabetic Vigenere substitution</b> with a <b>2 &times; 2 polygraphic Hill linear transformation</b> over &Zopf;<sub>26</sub>. The cipher requires a composite key string of length &ge; 10 characters (default: <font face='Courier'>AUTONOMOUS</font>, 10 letters) to establish strong periodic shifting and derive an invertible key matrix in the General Linear Group <i>GL</i>(2, &Zopf;<sub>26</sub>).",
-        body_style
-    ))
-    story.append(Paragraph(
-        "<b>Mathematical Formulation:</b> Let uppercase plaintext message <i>P = (p<sub>0</sub>, p<sub>1</sub>, ..., p<sub>n-1</sub>)</i> be mapped to numeric residues {0, 1, ..., 25}. Encryption executes across two sequential stages:",
-        body_style
-    ))
+    story.append(Paragraph("1. Problem Statement and Design Overview", section_heading))
+    add_text("The brief asks for a custom cipher built from at least two classical ciphers, in at least two stages that each use a different technique, with a key of at least 10 characters; a program that encrypts and decrypts A-Z text of different lengths; an attack that breaks the cipher; and an analysis of its efficiency against a single-stage Shift cipher.")
+    add_text("This project combines a <b>Vigenere cipher</b> (polyalphabetic substitution) with a <b>2 &times; 2 Hill cipher</b> (polygraphic matrix transformation over Z<sub>26</sub>). It is implemented in Python (<font face='Courier'>custom_cipher.py</font>), and the attack is a <b>known-plaintext attack</b> (<font face='Courier'>attack.py</font>). The main result is that the second stage hides letter frequencies well but adds little real security: both stages are linear, and the combination is broken in about a second by an attacker who knows roughly 40 letters of a message.")
 
-    eq_box1 = [
-        [Paragraph("<font face='Courier' size=8.5><b>Stage 1 (Vigenere Substitution):   C<sub>1</sub>[i] = (P[i] + K<sub>vig</sub>[i mod L]) mod 26</b></font>", body_style)],
-        [Paragraph("<font face='Courier' size=8.5><b>Stage 2 (Hill Linear Transform):    [C[2j], C[2j+1]]<sup>T</sup> = K<sub>hill</sub> &middot; [C<sub>1</sub>[2j], C<sub>1</sub>[2j+1]]<sup>T</sup> mod 26</b></font>", body_style)]
+    story.append(Paragraph("<b>Mathematical Definition</b>", sub_heading))
+    add_text("Letters map to A=0, ..., Z=25. The padded plaintext P is encrypted with a Vigenere key K<sub>vig</sub> of length L &ge; 10 and an invertible matrix K<sub>hill</sub> = [[a, b], [c, d]]:")
+    add_code(
+        "Stage 1 (Vigenere):  C1[i] = (P[i] + Kvig[i mod L]) mod 26\n"
+        "Stage 2 (Hill):      [C[2j], C[2j+1]]^T = Khill * [C1[2j], C1[2j+1]]^T mod 26"
+    )
+    add_text("Stage 2 can be undone only if gcd(det K<sub>hill</sub>, 26) = 1, that is, the determinant &Delta; = (ad - bc) mod 26 is neither even nor a multiple of 13. Decryption uses K<sub>hill</sub><sup>-1</sup> = &Delta;<sup>-1</sup> &middot; [[d, -b], [-c, a]] mod 26. There are |GL(2, Z<sub>26</sub>)| = 157,248 such matrices.")
+
+    story.append(Paragraph("<b>How the Classical Techniques Are Combined</b>", sub_heading))
+    bullets = [
+        "<b>Keys.</b> The cipher takes two keys, each at least 10 letters after removing non-letters; shorter keys are rejected. The Vigenere key is used letter by letter. The Hill phrase is reduced to a matrix by adding each of its letters, in turn, into entry a, b, c or d mod 26, so every letter of the phrase affects the matrix. If the determinant is not invertible, entry d is incremented (carrying into c, b, a) until it is.",
+        "<b>Order of the stages.</b> Vigenere runs first because it needs to act on individual letters at known positions. Its output is cut into pairs and each pair is multiplied by the Hill matrix, so each ciphertext letter depends on two Vigenere-shifted letters and on the key letters at both positions.",
+        "<b>What each stage contributes.</b> Vigenere replaces one fixed alphabet with L alphabets, which flattens the letter histogram. Hill then mixes neighbouring letters, which hides the repeating key alphabet from column-by-column Vigenere analysis, since a ciphertext letter no longer belongs to a single Caesar alphabet.",
+        "<b>Padding.</b> Hill needs an even number of letters. An odd-length message gets 'X' and an even-length message gets 'XA'. Padding is always added so that decryption can remove it without guessing: a final 'X' means one padding letter, anything else means two. A message genuinely ending in X, such as FOXX, therefore decrypts exactly.",
     ]
-    t_eq = Table(eq_box1, colWidths=[6.5*inch])
-    t_eq.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F1F2F6")),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#CED6E0")),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-    ]))
-    story.append(t_eq)
-    story.append(Spacer(1, 4))
+    for bullet in bullets:
+        add_text("&bull; " + bullet, bullet_style)
 
-    story.append(Paragraph("<b>Invertibility Constraints in General Linear Group GL(2, &Zopf;<sub>26</sub>):</b>", sub_heading))
-    story.append(Paragraph(
-        "For Stage 2 to be uniquely decipherable, the 2 &times; 2 Hill matrix <b>K</b><sub>hill</sub> = [[<i>a, b</i>], [<i>c, d</i>]] must belong to <i>GL</i>(2, &Zopf;<sub>26</sub>). Its determinant &Delta; = (<i>ad - bc</i>) mod 26 must satisfy the following algebraic constraints:",
-        body_style
-    ))
-    story.append(Paragraph(
-        "&bull; <b>Coprimality Condition:</b> gcd(&Delta;, 26) = 1 &hArr; &Delta; mod 2 &ne; 0 and &Delta; mod 13 &ne; 0.",
-        bullet_style
-    ))
-    story.append(Paragraph(
-        "&bull; <b>Modular Inverse & Decryption Matrix:</b> &Delta;<sup>-1</sup> exists such that (&Delta; &middot; &Delta;<sup>-1</sup>) &equiv; 1 (mod 26). The modular decryption matrix is: <b>K</b><sub>hill</sub><sup>-1</sup> = &Delta;<sup>-1</sup> &middot; [[<i>d, -b</i>], [<i>-c, a</i>]] mod 26.",
-        bullet_style
-    ))
-    story.append(Paragraph(
-        "&bull; <b>Theoretical Matrix Keyspace:</b> The total number of valid invertible 2 &times; 2 matrices is |<i>GL</i>(2, &Zopf;<sub>26</sub>)| = 26<sup>4</sup>(1 - 1/2)(1 - 1/4)(1 - 1/13)(1 - 1/169) = <b>157,248</b> valid states.",
-        bullet_style
-    ))
+    example = CustomHybridCipher("CRYPTOGRAPHYKEY", "HILLCIPHERKEY")
+    padded = add_padding("ATTACKATDAWN")
+    stage1 = "".join(chr(n + 65) for n in example._vigenere_encrypt(padded))
+    story.append(Paragraph("<b>Worked Example</b>", sub_heading))
+    add_code(
+        f"Keys:        Kvig = CRYPTOGRAPHYKEY (L = 15), Hill phrase = HILLCIPHERKEY\n"
+        f"Matrix:      Khill = {[list(example.hill_mat[:2]), list(example.hill_mat[2:])]}\n"
+        f"Plaintext:   ATTACKATDAWN\n"
+        f"Padded:      {padded}\n"
+        f"Stage 1:     {stage1}\n"
+        f"Stage 2:     {example.encrypt('ATTACKATDAWN')}   (final ciphertext)\n"
+        f"Decrypted:   {example.decrypt(example.encrypt('ATTACKATDAWN'))}"
+    )
     story.append(PageBreak())
 
     # =========================================================
-    # PAGE 3: CIPHER DESIGN & ALGORITHMS
+    # SECTION 2: ALGORITHMS
     # =========================================================
     story.append(Spacer(1, 8))
-    story.append(Paragraph("2. Custom Cipher Design & Implementation", section_heading))
-    story.append(Paragraph(
-        "The cryptographic engine was engineered in Python 3.14 (<font face='Courier'>custom_cipher.py</font>). The automated key schedule parses any alphanumeric primary key &ge; 10 characters, maps it into uppercase alphabet residues, and deterministically derives an invertible 2 &times; 2 Hill matrix with guaranteed modular inverse.",
-        body_style
-    ))
-
-    story.append(Paragraph("<b>Algorithm 1: Custom Cipher Encryption</b>", sub_heading))
-    code_enc_txt = (
-        "Algorithm: CustomCipherEncrypt(P, K_raw)\n"
-        "Input:  Plaintext string P, Key string K_raw (|K_raw| >= 10)\n"
-        "Output: Ciphertext string C\n"
-        "1: P_clean <- FilterNonAlpha(UpperCase(P))\n"
-        "2: if length(P_clean) mod 2 != 0 then P_clean <- P_clean + 'X'\n"
-        "3: K_vig, K_hill <- DeriveKeys(K_raw)\n"
-        "4: for i = 0 to length(P_clean) - 1 do\n"
-        "5:     C1[i] <- (CharToNum(P_clean[i]) + CharToNum(K_vig[i mod |K_vig|])) mod 26\n"
-        "6: for j = 0 to (length(P_clean) / 2) - 1 do\n"
-        "7:     [x1, x2]^T <- [C1[2j], C1[2j+1]]^T\n"
-        "8:     [y1, y2]^T <- K_hill * [x1, x2]^T mod 26\n"
-        "9:     C[2j] <- NumToChar(y1);  C[2j+1] <- NumToChar(y2)\n"
+    story.append(Paragraph("2. Encryption and Decryption Algorithms", section_heading))
+    story.append(Paragraph("<b>Algorithm 1: Encryption</b>", sub_heading))
+    add_code(
+        "Input:  Plaintext P, Vigenere key Kvig (|Kvig| >= 10), Hill phrase H (|H| >= 10)\n"
+        "Output: Ciphertext C\n"
+        " 1: P <- keep only letters A-Z of UpperCase(P)\n"
+        " 2: if P is empty then return empty string\n"
+        " 3: if |P| is odd then P <- P + 'X' else P <- P + 'XA'\n"
+        " 4: Khill <- DeriveMatrix(H)\n"
+        " 5: for i = 0 to |P| - 1 do\n"
+        " 6:     C1[i] <- (P[i] + Kvig[i mod |Kvig|]) mod 26\n"
+        " 7: for j = 0 to |P|/2 - 1 do\n"
+        " 8:     C[2j]   <- (a * C1[2j] + b * C1[2j+1]) mod 26\n"
+        " 9:     C[2j+1] <- (c * C1[2j] + d * C1[2j+1]) mod 26\n"
         "10: return C"
     )
-    t_c1 = Table([[Preformatted(code_enc_txt, code_style)]], colWidths=[6.5*inch])
-    t_c1.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8F9FA")),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#D1D8E0")),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-    ]))
-    story.append(t_c1)
-    story.append(Spacer(1, 4))
-
-    story.append(Paragraph("<b>Algorithm 2: Custom Cipher Decryption</b>", sub_heading))
-    code_dec_txt = (
-        "Algorithm: CustomCipherDecrypt(C, K_raw)\n"
-        "Input:  Ciphertext string C, Key string K_raw (|K_raw| >= 10)\n"
-        "Output: Plaintext string P\n"
-        "1: K_vig, K_hill <- DeriveKeys(K_raw)\n"
-        "2: det_inv <- ModularInverse(det(K_hill), 26)\n"
-        "3: K_hill_inv <- det_inv * adj(K_hill) mod 26\n"
-        "4: for j = 0 to (length(C) / 2) - 1 do\n"
-        "5:     [y1, y2]^T <- [CharToNum(C[2j]), CharToNum(C[2j+1])]^T\n"
-        "6:     [x1, x2]^T <- K_hill_inv * [y1, y2]^T mod 26\n"
-        "7:     C1[2j] <- x1;  C1[2j+1] <- x2\n"
-        "8: for i = 0 to length(C) - 1 do\n"
-        "9:     P[i] <- NumToChar((C1[i] - CharToNum(K_vig[i mod |K_vig|])) mod 26)\n"
+    story.append(Paragraph("<b>Algorithm 2: Decryption</b>", sub_heading))
+    add_code(
+        "Input:  Ciphertext C, Vigenere key Kvig, Hill phrase H\n"
+        "Output: Original plaintext P\n"
+        " 1: if |C| is odd then reject as invalid\n"
+        " 2: Khill <- DeriveMatrix(H)\n"
+        " 3: Kinv <- ModInverse(det Khill, 26) * [[d, -b], [-c, a]] mod 26\n"
+        " 4: for j = 0 to |C|/2 - 1 do\n"
+        " 5:     C1[2j]   <- (Kinv.a * C[2j] + Kinv.b * C[2j+1]) mod 26\n"
+        " 6:     C1[2j+1] <- (Kinv.c * C[2j] + Kinv.d * C[2j+1]) mod 26\n"
+        " 7: for i = 0 to |C| - 1 do\n"
+        " 8:     P[i] <- (C1[i] - Kvig[i mod |Kvig|]) mod 26\n"
+        " 9: if P ends in 'X' then remove 1 letter else remove 2 letters\n"
         "10: return P"
     )
-    t_c2 = Table([[Preformatted(code_dec_txt, code_style)]], colWidths=[6.5*inch])
-    t_c2.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F8F9FA")),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#D1D8E0")),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-    ]))
-    story.append(t_c2)
-    story.append(PageBreak())
+    story.append(Paragraph("<b>DeriveMatrix(H)</b>", sub_heading))
+    add_code(
+        "1: [a, b, c, d] <- [0, 0, 0, 0]\n"
+        "2: for i = 0 to |H| - 1 do  entry[i mod 4] <- (entry[i mod 4] + H[i]) mod 26\n"
+        "3: while gcd(ad - bc, 26) != 1 do  increment d, carrying into c, b, a at 26\n"
+        "4: return [[a, b], [c, d]]"
+    )
+    add_text(f"The unit tests in <font face='Courier'>test_suite.py</font> check exact round trips for every length from 1 to 26, a 380-letter message, and padding-like endings such as X, XX, XA and FOXX.")
 
     # =========================================================
-    # PAGE 4: SECURITY ANALYSIS & STATISTICAL EVALUATION
+    # SECTION 3: SECURITY ANALYSIS
     # =========================================================
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("3. Security Analysis & Statistical Evaluation", section_heading))
-    story.append(Paragraph(
-        "<b>Shannon's Confusion & Diffusion:</b> Stage 1 (Vigenere) provides <i>Confusion</i> by shifting each character across 10 distinct alphabets, obscuring direct 1-to-1 letter correspondences. Stage 2 (Hill) introduces <i>Diffusion</i> by entangling adjacent characters into 2D linear combinations, so modifying one plaintext character alters both characters in the resulting digram.",
-        body_style
-    ))
-    story.append(Paragraph(
-        "<b>Index of Coincidence (IoC):</b> Friedman's Index of Coincidence evaluates non-uniformity: <i>IoC = &sum; f<sub>i</sub>(f<sub>i</sub> - 1) / [N(N - 1)]</i>. Standard English exhibits <i>IoC &approx; 0.0667</i>, whereas a completely uniform random polyalphabetic distribution exhibits <i>IoC = 1/26 &approx; 0.0385</i>.",
-        body_style
-    ))
-    story.append(Spacer(1, 3))
-
-    # Figure 1 Insertion
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("3. Security Analysis", section_heading))
+    add_text("<b>Key space.</b> With L = 10 there are 26<super>10</super> &times; 157,248 &asymp; 2.2 &times; 10<super>19</super> key pairs, against 26 for the Shift cipher, so exhaustive search of both keys together is impractical. This number overstates the security, because the attack in Section 4 never searches the Vigenere key: it searches the matrices alone and solves for the Vigenere key directly.")
+    add_text("<b>Structure.</b> Substituting Stage 1 into Stage 2 gives C<sub>j</sub> = K<sub>hill</sub> &middot; P<sub>j</sub> + K<sub>hill</sub> &middot; V<sub>j</sub> mod 26, where V<sub>j</sub> is the pair of key letters at block j. The whole cipher is therefore a single affine Hill cipher whose constant term repeats with the key. Composing two linear stages does not create a stronger kind of function, and that is the weakness the attack exploits.")
+    add_text(f"<b>Confusion and diffusion.</b> Vigenere provides confusion: the same letter encrypts differently at different positions. Diffusion is limited to one pair. Changing one plaintext letter changed <b>{freq['avg_ciphertext_letters_changed']}</b> ciphertext letters on average and never more than {freq['max_ciphertext_letters_changed']}, whereas a modern block cipher changes about half of its output.")
+    add_text(f"<b>Frequency analysis.</b> Letter counts of each ciphertext were compared with the expected English distribution, using the Index of Coincidence IoC = &sum; f<sub>i</sub>(f<sub>i</sub> - 1) / [N(N - 1)] and the chi-squared distance from English. Figures are averages over {freq['samples']} random key sets and {freq['length']:,}-letter passages of English technical documentation, which runs slightly above the textbook English IoC of 0.0667.")
+    rows = [["Text", "Mean IoC", "Std. dev.", "Chi-squared vs English"]]
+    for name in ["Plaintext", "Shift", "Hill only", "Vigenere only", "Custom"]:
+        label = {"Custom": "Custom (Vigenere + Hill)", "Shift": "Shift ciphertext"}.get(name, name)
+        rows.append([label, f"{stats[name]['ioc']:.4f}", f"{stats[name]['ioc_stdev']:.4f}", f"{stats[name]['chi_squared']:,.1f}"])
+    add_table(rows, [2.3, 1.2, 1.2, 1.8])
     plot1_path = os.path.join(SCRIPT_DIR, "frequency_ioc_analysis.png")
-    if os.path.exists(plot1_path):
-        story.append(RLImage(plot1_path, width=6.5*inch, height=2.65*inch))
-        story.append(Paragraph("<font size=7.5><i>Figure 1: Statistical Letter Frequency Distribution and Index of Coincidence (IoC) Benchmarks across Cipher Primitives</i></font>", body_style))
-    story.append(Spacer(1, 4))
-
-    story.append(Paragraph(
-        "<b>Statistical Resistance Findings:</b> As demonstrated in Figure 1, the custom cipher depresses the Index of Coincidence to <b>0.0405 &plusmn; 0.001</b>, closely approaching the theoretical random baseline (0.0385). High-frequency English letters ('E', 'T', 'A') are completely flattened across the 26-character spectrum, successfully defeating ciphertext-only frequency analysis.",
-        body_style
-    ))
-    story.append(PageBreak())
+    story.append(RLImage(plot1_path, width=6.5*inch, height=2.65*inch))
+    add_text("<font size=7.5><i>Figure 1: Measured letter frequency of each ciphertext against expected English, and measured IoC.</i></font>")
+    add_text(f"The Shift cipher has exactly the plaintext's IoC ({stats['Shift']['ioc']:.4f}) because it only renames letters. The custom cipher reaches {stats['Custom']['ioc']:.4f}, close to the uniform value of 0.0385, and its histogram no longer resembles English. The chi-squared value shows only that the ciphertext is far from English. Frequency analysis on its own therefore does not recover the key here, so it serves as a measure of how well the statistics are hidden; the cipher is broken by the attack below.")
 
     # =========================================================
-    # PAGE 5: ATTACK SIMULATION & RESULTS
+    # SECTION 4: ATTACK
     # =========================================================
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("4. Cryptanalytic Attack Simulation & Results", section_heading))
-    story.append(Paragraph(
-        "To fulfill the attack simulation requirement, an automated <b>Known-Plaintext Attack (KPA)</b> solver was implemented in <font face='Courier'>attack.py</font> to mathematically exploit the linear dependence across both encryption stages.",
-        body_style
-    ))
-    story.append(Paragraph("<b>Algebraic Formulation of Known-Plaintext Attack:</b>", sub_heading))
-    story.append(Paragraph(
-        "Given intercepted ciphertext digrams <b>C</b> and corresponding known plaintext digrams <b>P</b>: <b>C</b> = <b>K</b><sub>hill</sub> &middot; (<b>P</b> + <b>K</b><sub>vig</sub>) mod 26. When known plaintext spans &ge; <i>L</i> characters (where <i>L</i> = 10 is the key length), difference vectors between digrams separated by key period <i>L</i> eliminate the constant Vigenere term: &Delta;<b>C</b> &equiv; <b>K</b><sub>hill</sub> &middot; &Delta;<b>P</b> (mod 26).",
-        body_style
-    ))
-    story.append(Paragraph(
-        "By taking two linearly independent difference vectors such that gcd(det(&Delta;<b>P</b>), 26) = 1, the attacker solves <b>K</b><sub>hill</sub> directly: <b>K</b><sub>hill</sub> = &Delta;<b>C</b> &middot; (&Delta;<b>P</b>)<sup>-1</sup> mod 26. With <b>K</b><sub>hill</sub> recovered, the Vigenere key is extracted via: <b>K</b><sub>vig</sub>[i] = (<b>K</b><sub>hill</sub><sup>-1</sup> &middot; <b>C</b>[i] - <b>P</b>[i]) mod 26.",
-        body_style
-    ))
-    story.append(Spacer(1, 4))
-
-    attack_table_data = [
-        ["Ciphertext Length", "Known Plaintext", "Attack Method", "Key Recovery Time", "Success Rate"],
-        ["100 Chars", "4 Chars (2 pairs)", "KPA Matrix Inversion", "18.5 ms", "92.0%"],
-        ["500 Chars", "6 Chars (3 pairs)", "KPA Matrix Inversion", "24.2 ms", "97.5%"],
-        ["1,000 Chars", "10 Chars (Full Key)", "KPA Matrix Inversion", "42.1 ms", "100.0%"],
-        ["5,000 Chars", "20 Chars (Redundant)", "KPA Matrix Inversion", "78.4 ms", "100.0%"],
-        ["10,000 Chars", "100 Chars (Redundant)", "KPA Matrix Inversion", "215.0 ms", "100.0%"]
-    ]
-    t_atk = Table(attack_table_data, colWidths=[1.3*inch, 1.4*inch, 1.5*inch, 1.2*inch, 1.1*inch])
-    t_atk.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('FONTNAME', (0,0), (-1,0), 'Times-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 8.0),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('TOPPADDING', (0,0), (-1,-1), 3.5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#F8F9FA")])
-    ]))
-    story.append(t_atk)
-    story.append(Spacer(1, 5))
-
-    story.append(Paragraph(
-        "<b>Attack Complexity & Cryptanalytic Verdict:</b> By precomputing the 157,248 candidates in <i>GL</i>(2, &Zopf;<sub>26</sub>), the solver recovers the full 10-character key in <b>&lt; 45 milliseconds</b> with 100% success rate. This demonstrates the fundamental cryptographic axiom: absent non-linear S-boxes, all classical multi-stage linear ciphers are vulnerable to Known-Plaintext cryptanalysis.",
-        body_style
-    ))
-    story.append(PageBreak())
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("4. Attack Method and Results", section_heading))
+    add_text("<b>Scenario.</b> The attacker has the whole ciphertext and the plaintext of its first M letters, such as a predictable message header, and knows the algorithm and that keys have at least 10 letters. The attacker does <b>not</b> know either key or the Vigenere key length.")
+    story.append(Paragraph("<b>Algorithm 3: Known-Plaintext Attack</b>", sub_heading))
+    add_code(
+        "Input:  Ciphertext C, known plaintext P[0..M-1]\n"
+        "Output: Khill, Kvig and the full plaintext, or failure\n"
+        " 1: Pool <- all 157,248 invertible 2x2 matrices mod 26 with their inverses\n"
+        " 2: for L = 10 to M - 20 do                       // candidate key lengths\n"
+        " 3:     for each matrix K in Pool do\n"
+        " 4:         for each known pair j do\n"
+        " 5:             [x1, x2]^T <- Kinv * [C[2j], C[2j+1]]^T mod 26\n"
+        " 6:             k <- (x - P) mod 26 for both letters\n"
+        " 7:             if k disagrees with a key letter already set at i mod L then reject K\n"
+        " 8:         if K was not rejected then decrypt all of C with (K, k); return\n"
+        " 9: return failure"
+    )
+    add_text("<b>Why it works.</b> Once the correct matrix is guessed, Stage 2 is undone and Stage 1 reduces to k[i] = x[i] - P[i], which directly reveals the Vigenere key. A wrong matrix produces a stream that does not repeat every L letters. The check exploits exactly the two properties identified in Section 3: linearity and the repeating key. Known pairs are tested grouped by key position, so a wrong matrix is usually rejected after a few checks.")
+    add_text("<b>How much known text is needed.</b> At least L letters are needed to see every key letter, and extra letters are needed to reject wrong matrices. Because 26 = 2 &times; 13, a matrix that is correct mod 13 and wrong only mod 2 passes each check about half the time. In a separate experiment (<font face='Courier'>false_match_experiment.py</font>) with L = 20, 8 extra letters returned a wrong key in 14 of 150 runs and 20 extra letters in 0 of 150, so the attack requires M &ge; L + 20 and reports failure otherwise.")
+    add_text(f"<b>Results.</b> Each row is {trials} trials, each with new random keys (Vigenere key of 10 to 20 letters) and a new random English passage. A trial counts as a success only if the complete message is recovered exactly. Time excludes the one-off construction of the matrix pool, which took {results['gl2_precompute_ms']:.0f} ms.")
+    story.append(Paragraph("<b>Table 1: Success and effort by ciphertext length (first 25% of the message known)</b>", sub_heading))
+    rows = [["Ciphertext length", "Known letters", "Success rate", "Average time (ms)", "Worst time (ms)", "Average matrices tried"]]
+    for row in by_length:
+        rows.append([f"{row['length']:,}", f"{row['known_chars']:,}", f"{row['success_rate']:.1f}%", f"{row['avg_time_ms']:.1f}", f"{row['max_time_ms']:.1f}", f"{row['avg_matrices']:,}"])
+    add_table(rows, [1.2, 0.95, 0.95, 1.15, 1.05, 1.2])
+    story.append(Paragraph("<b>Table 2: Success and effort by amount of known plaintext (1,000-letter ciphertext)</b>", sub_heading))
+    rows = [["Known letters", "Success rate", "Average time (ms)", "Worst time (ms)", "Average matrices tried"]]
+    for row in by_known:
+        rows.append([f"{row['known_chars']}", f"{row['success_rate']:.1f}%", f"{row['avg_time_ms']:.1f}", f"{row['max_time_ms']:.1f}", f"{row['avg_matrices']:,}"])
+    add_table(rows, [1.2, 1.2, 1.4, 1.3, 1.4])
+    add_text(f"Success is decided by the amount of known text, not by the ciphertext length as such. Short messages fail in Table 1 only because 25% of them is too few letters. With 40 or more known letters, enough for the longest key tested, recovery was exact in every trial. When recovery succeeded, the attack averaged about {typical_ms:.0f} ms and at most {worst_ms:.0f} ms, and its cost did not grow with the ciphertext length.")
 
     # =========================================================
-    # PAGE 6: BENCHMARKS, ENHANCEMENTS & CONCLUSION
+    # SECTION 5: PERFORMANCE
     # =========================================================
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("5. Benchmarks, Enhancements & Conclusion", section_heading))
-    story.append(Paragraph(
-        "<b>Empirical Performance Comparison:</b> The custom two-stage cipher was benchmarked against a baseline single-stage Shift cipher across 100 to 10,000 characters (<font face='Courier'>benchmark.py</font>).",
-        body_style
-    ))
-
-    bench_table_data = [
-        ["Metric", "Single-Stage Shift Cipher", "Custom Two-Stage Cipher", "Relative Ratio"],
-        ["Asymptotic Time / Space Complexity", "O(N) / O(N)", "O(N) / O(N)", "Identical O(N)"],
-        ["Keyspace Complexity", "26 states (trivial)", "26^10 * 157,248 approx 2.2 * 10^19", "8.5 * 10^17 x Larger"],
-        ["Throughput (1,000 characters)", "4,032,258 chars/sec", "1,347,708 chars/sec", "0.33x Throughput"],
-        ["Encryption Latency (1,000 chars)", "0.248 ms", "0.742 ms", "2.99x Runtime"],
-        ["Resistance to Frequency Analysis", "Vulnerable (IoC = 0.0665)", "Resistant (IoC = 0.0405)", "Dramatically Superior"]
-    ]
-    t_bench = Table(bench_table_data, colWidths=[1.9*inch, 1.8*inch, 1.9*inch, 0.9*inch])
-    t_bench.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('FONTNAME', (0,0), (-1,0), 'Times-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 7.8),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('ALIGN', (0,1), (0,-1), 'LEFT'),
-        ('TOPPADDING', (0,0), (-1,-1), 2.5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#BDC3C7")),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#F8F9FA")])
-    ]))
-    story.append(t_bench)
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("5. Performance and Efficiency", section_heading))
+    add_text("<b>Time complexity</b>, for a message of N letters:")
+    for bullet in [
+        "<b>Encryption:</b> Vigenere does N additions and Hill does N/2 matrix multiplications of constant size, so the total is <b>O(N)</b>.",
+        "<b>Decryption:</b> inverting a 2 &times; 2 matrix takes constant time, followed by the same two passes in reverse, so the total is <b>O(N)</b>.",
+        "<b>Shift cipher:</b> one addition per letter, also <b>O(N)</b>. All three use O(N) space. The custom cipher is slower by a constant factor only.",
+        f"<b>Attack:</b> the matrix pool is a one-off 26<super>4</super> = 456,976 determinant checks. The search is O(T &middot; |GL| &middot; c), where T is the number of key lengths tried, |GL| = 157,248 and c is the average number of checks before rejection, which is small and in the worst case M. Recovering the message afterwards is O(N).",
+    ]:
+        add_text("&bull; " + bullet, bullet_style)
     story.append(Spacer(1, 3))
-
-    # Figure 2 Insertion (tight height to guarantee perfect page fit)
+    environment = results["environment"]
+    story.append(CondPageBreak(1.9*inch))
+    story.append(Paragraph(f"<b>Table 3: Measured cipher time in ms (average of 50 runs, Python {environment['python']})</b>", sub_heading))
+    rows = [["Length", "Custom encrypt", "Custom decrypt", "Shift encrypt", "Shift decrypt", "Encrypt overhead", "Custom letters/s"]]
+    for row in cipher_rows:
+        rows.append([f"{row['length']:,}", f"{row['custom_enc_ms']:.4f}", f"{row['custom_dec_ms']:.4f}", f"{row['shift_enc_ms']:.4f}", f"{row['shift_dec_ms']:.4f}", f"{row['custom_enc_ms'] / row['shift_enc_ms']:.2f}x", f"{row['length'] / row['custom_enc_ms'] * 1000:,.0f}"])
+    add_table(rows, [0.7, 1.0, 1.0, 0.9, 0.9, 1.0, 1.0])
     plot2_path = os.path.join(SCRIPT_DIR, "benchmark_comparison.png")
-    if os.path.exists(plot2_path):
-        story.append(RLImage(plot2_path, width=6.5*inch, height=2.2*inch))
-        story.append(Paragraph("<font size=7.5><i>Figure 2: Empirical Encryption Latency Scaling vs Message Size and KPA Solver Recovery Latencies</i></font>", body_style))
-    story.append(Spacer(1, 3))
+    story.append(RLImage(plot2_path, width=6.5*inch, height=2.65*inch))
+    add_text("<font size=7.5><i>Figure 2: Measured cipher time against message length, and attack success against known plaintext.</i></font>")
+    add_text(f"Time grows linearly with length for both ciphers, as the analysis predicts. Encrypting 1,000 letters took {at_1000['custom_enc_ms']:.3f} ms with the custom cipher and {at_1000['shift_enc_ms']:.3f} ms with the Shift cipher. The two-stage design costs {min(overheads):.1f}x to {max(overheads):.1f}x the time of the single-stage cipher, and in return it hides letter frequencies that the Shift cipher exposes completely. These are timings of interpreted Python on one machine, so the ratios are more meaningful than the absolute values.")
 
-    story.append(Paragraph("<b>Security Enhancements Without Increasing Complexity:</b>", sub_heading))
-    story.append(Paragraph(
-        "<b>1. Dynamic Autokey Feedback:</b> Set <i>K<sub>vig</sub>[i] = (K<sub>vig</sub>[i] + C[i-1]) mod 26</i> for <i>i &ge; 1</i>. This destroys periodic keystream alignment at zero computational overhead.<br/>"
-        "<b>2. Keyed Transposition Permutation Layer:</b> Apply an <i>O(N)</i> columnar shuffle between stages to disrupt adjacent digram pairs.<br/>"
-        "<b>3. Cipher-Block Chaining (CBC) Emulation:</b> XOR previous ciphertext digram into current plaintext vector before matrix multiplication to break linear matrix equations.",
-        body_style
-    ))
-    story.append(Spacer(1, 3))
-
-    story.append(Paragraph(
-        "<b>Conclusion & GitHub Repository:</b> All CLO3 project requirements were rigorously fulfilled. The complete codebase, unit tests, and documentation are publicly hosted at: <b><u>https://github.com/ameemakhtr/NIS_CCP</u></b>",
-        body_style
-    ))
+    # =========================================================
+    # SECTION 6: IMPROVEMENTS AND SUBMISSION
+    # =========================================================
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("6. Improving Security Without Significantly Increasing Complexity", section_heading))
+    add_text("The attack depends on linearity and on the repeating key, so useful changes must remove one of these. Each option below stays O(N). They would raise the attacker's cost but were not implemented or measured here, and none would make the cipher secure by modern standards.")
+    for bullet in [
+        "<b>1. Keyed non-linear substitution between the stages.</b> Pass each Vigenere output letter through a secret permutation of the alphabet, one table lookup per letter. The relation k[i] = x[i] - P[i] then no longer holds, so the key letters cannot be read off after guessing the matrix.",
+        "<b>2. Keyed columnar transposition between the stages.</b> Reordering letters by a secret permutation separates known plaintext from the ciphertext positions it produces, so the attacker must also search the permutation.",
+        "<b>3. A non-repeating keystream.</b> Derive a different Vigenere key for each message from the main key and a per-message value. The periodicity check that rejects wrong matrices then has nothing to test.",
+    ]:
+        add_text(bullet, bullet_style)
+    add_text("Two changes that seem helpful are weak on their own. A longer Vigenere key only raises the known text needed (M &ge; L + 20). A larger Hill matrix leaves the system linear: subtracting blocks a whole number of key periods apart cancels the Vigenere term and gives &Delta;C = K<sub>hill</sub> &middot; &Delta;P, which can be solved with linear algebra rather than search.")
+    story.append(Paragraph("7. Code Submission", section_heading))
+    add_text("The source code, tests and measurement scripts are at: <b><u>https://github.com/ameemakhtr/NIS_CCP</u></b>. Running <font face='Courier'>python benchmark.py</font> reproduces <font face='Courier'>results.json</font>, from which every table and figure above is generated.")
 
     doc.build(story, canvasmaker=NumberedCanvas)
     print(f"Successfully generated PDF: {pdf_filename}")

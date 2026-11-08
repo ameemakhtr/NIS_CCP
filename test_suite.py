@@ -46,10 +46,36 @@ class TestCustomCipher(unittest.TestCase):
 
         for msg in test_messages:
             cleaned = clean_text(msg)
-            expected = cleaned if len(cleaned) % 2 == 0 else cleaned + 'X'
             ciphertext = self.cipher.encrypt(msg)
             decrypted = self.cipher.decrypt(ciphertext)
-            self.assertEqual(decrypted, expected, f"Failed round-trip for message: {msg[:20]}...")
+            self.assertEqual(decrypted, cleaned, f"Failed round-trip for message: {msg[:20]}...")
+
+    def test_padding_is_unambiguous(self):
+        """Messages that look like padding must still decrypt exactly."""
+        for msg in ["A", "X", "AX", "XX", "XA", "FOX", "FOXX", "TAXA", "XAX", "XAXA", "ZZZ"]:
+            self.assertEqual(self.cipher.decrypt(self.cipher.encrypt(msg)), msg)
+        self.assertEqual(self.cipher.encrypt(""), "")
+        self.assertEqual(self.cipher.decrypt(""), "")
+
+    def test_all_letters_roundtrip(self):
+        """Every letter A-Z survives at every prefix length."""
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        for n in range(1, 27):
+            self.assertEqual(self.cipher.decrypt(self.cipher.encrypt(alphabet[:n])), alphabet[:n])
+
+    def test_non_ascii_letters_are_dropped(self):
+        """Only A-Z is in the alphabet; other letters must not corrupt the message."""
+        self.assertEqual(clean_text("caf\u00e9 \u0645 au"), "CAFAU")
+
+    def test_odd_ciphertext_rejected(self):
+        with self.assertRaises(ValueError):
+            self.cipher.decrypt("ABC")
+
+    def test_every_hill_key_letter_matters(self):
+        """The full >=10 character Hill phrase feeds the matrix, not just its prefix."""
+        one = CustomHybridCipher(self.vigenere_key, "HILLCIPHERKEY").hill_mat
+        other = CustomHybridCipher(self.vigenere_key, "HILLCIPHERKEZ").hill_mat
+        self.assertNotEqual(one, other)
 
     def test_shift_cipher_roundtrip(self):
         """Verify single-stage shift cipher baseline."""
@@ -87,8 +113,22 @@ class TestCustomCipher(unittest.TestCase):
 
         self.assertTrue(attack_result["success"])
         self.assertEqual(attack_result["recovered_vigenere_key"], self.vigenere_key)
-        expected_full = secret_message if len(secret_message) % 2 == 0 else secret_message + 'X'
-        self.assertEqual(attack_result["recovered_full_plaintext"], expected_full)
+        self.assertEqual(attack_result["recovered_full_plaintext"], secret_message)
+
+    def test_attack_finds_unknown_key_length(self):
+        """The attacker is not told the key length and must find it."""
+        message = "ATTACKTHEEASTERNRELAYATDAWNANDHOLDUNTILRELIEFARRIVESFROMTHESOUTH" * 3
+        result = KnownPlaintextAttacker.attack(self.cipher.encrypt(message), message[:40])
+        self.assertTrue(result["success"])
+        self.assertEqual(result["recovered_key_len"], len(self.vigenere_key))
+        self.assertEqual(result["recovered_full_plaintext"], message)
+
+    def test_attack_refuses_too_little_known_text(self):
+        """Without redundancy a match would be coincidence, so report failure."""
+        message = "ATTACKTHEEASTERNRELAYATDAWNANDHOLDUNTILRELIEFARRIVES"
+        ciphertext = self.cipher.encrypt(message)
+        for known in (4, 10, 16):
+            self.assertFalse(KnownPlaintextAttacker.attack(ciphertext, message[:known])["success"])
 
 
 if __name__ == "__main__":

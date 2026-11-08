@@ -21,7 +21,7 @@ While individual classical ciphers (such as Caesar, Vigenère, or Hill) are triv
 This project implements a high-throughput, two-stage classical hybrid cipher combining:
 1. **Stage 1 (Polyalphabetic Substitution — Vigenère Cipher):** Masks monoalphabetic frequency spikes by cycling character shifts across a key of length ≥ 10 characters (enforcing strong Shannon *Confusion*).
 2. **Stage 2 (Polygraphic Block Transformation — 2 × 2 Hill Cipher):** Entangles adjacent characters in ℤ₂₆ via matrix transformation over the General Linear Group GL(2, ℤ₂₆) (enforcing Shannon *Diffusion* across digrams).
-3. **Cryptanalytic Attack Engine:** An automated solver simulating both ciphertext-only **Frequency Analysis (Index of Coincidence)** and an algebraic **Known-Plaintext Attack (KPA)** that breaks the cipher in < 45 ms.
+3. **Cryptanalytic Attack Engine:** An automated solver simulating both ciphertext-only **Frequency Analysis (Index of Coincidence)** and an algebraic **Known-Plaintext Attack (KPA)** that recovers both keys and the full message without being told the key length.
 
 ---
 
@@ -100,7 +100,7 @@ def encrypt(self, plaintext: str) -> str:
 
 ### 1. Shannon's Confusion and Diffusion
 * **Confusion:** The 10-character Vigenère key disperses each character across 10 distinct Caesar alphabets, flattening monoalphabetic frequency spikes.
-* **Diffusion:** The 2 × 2 Hill matrix transformation blends adjacent characters; altering a single character alters both letters in the output digram.
+* **Diffusion:** The 2 × 2 Hill matrix transformation blends adjacent characters; altering one plaintext letter changes at most its own output pair (measured average: 1.77 letters).
 
 ### 2. Friedman's Index of Coincidence (IoC)
 The Index of Coincidence measures the non-uniformity of character distributions:
@@ -109,38 +109,56 @@ $$
 \text{IoC} = \frac{\sum_{i=A}^{Z} f_i (f_i - 1)}{N(N - 1)}
 $$
 
-| Cipher Type | Index of Coincidence (IoC) | Vulnerability Status |
-|---|:---:|---|
-| **English Plaintext** | 0.0667 | Normal Language Baseline |
-| **Shift (Caesar) Cipher** | 0.0665 | **Extremely Vulnerable** (Direct 1-to-1 frequency leakage) |
-| **Custom Two-Stage Cipher** | **0.0405** | **Resistant** (Approaches uniform random baseline 0.0385) |
+| Text | Mean IoC | Chi-squared vs English |
+|---|:---:|:---:|
+| Plaintext (English) | 0.0703 | 534.0 |
+| Shift cipher | 0.0703 | 61,406.1 |
+| Hill only | 0.0445 | 29,986.2 |
+| Vigenere only | 0.0407 | 29,234.7 |
+| **Custom (Vigenere + Hill)** | 0.0391 | 29,480.5 |
+
+The Shift cipher keeps the plaintext's IoC exactly because it only renames letters. The English sample is technical documentation, which runs slightly above the textbook 0.0667.
 
 ---
 
 ## ⚔️ Cryptanalytic Attack Simulation (Known-Plaintext Attack)
 
-While the custom cipher defeats simple frequency analysis, classical ciphers are linear over ℤ₂₆. An automated **Known-Plaintext Attack (KPA)** engine was developed (`attack.py`):
+The custom cipher hides letter frequencies, but both stages are linear, so an automated **Known-Plaintext Attack (KPA)** (`attack.py`) breaks it. The attacker has the ciphertext and its first M letters of plaintext, and knows neither key nor the key length.
+
+For each key length L from 10 to M - 20 and each of the 157,248 invertible matrices, the attack undoes the Hill stage on the known letters and computes the implied Vigenère key:
 
 $$
-\mathbf{C} = \mathbf{K}_{\text{hill}} \cdot (\mathbf{P} + \mathbf{K}_{\text{vig}}) \pmod{26}
+k[i] = \left(\mathbf{K}_{\text{hill}}^{-1} C\right)[i] - P[i] \pmod{26}
 $$
 
-When the attacker observes plaintext aligned across the key period L = 10, difference vectors eliminate the constant Vigenère key term:
-
-$$
-\Delta\mathbf{C} \equiv \mathbf{K}_{\text{hill}} \cdot \Delta\mathbf{P} \pmod{26} \implies \mathbf{K}_{\text{hill}} = \Delta\mathbf{C} \cdot (\Delta\mathbf{P})^{-1} \pmod{26}
-$$
+A matrix is rejected as soon as k fails to repeat every L letters. The surviving matrix and key decrypt the rest of the message.
 
 ### Empirical Attack Success Rate & Computational Effort:
-Evaluated across varying message lengths on standard CPU hardware:
+Measured by `benchmark.py` (20 trials per row, new random keys and English text each trial; saved in `results.json`). The first 25% of each message is known, and success means the exact full message was recovered:
 
-| Ciphertext Length (N) | Known Plaintext (M) | Attack Method | Key Recovery Time | Success Rate (%) |
-| :---: | :---: | :---: | :---: | :---: |
-| **100 Chars** | 4 Chars (2 pairs) | KPA Matrix Inversion | **18.5 ms** | **92.0%** |
-| **500 Chars** | 6 Chars (3 pairs) | KPA Matrix Inversion | **24.2 ms** | **97.5%** |
-| **1,000 Chars** | 10 Chars (Full Key) | KPA Matrix Inversion | **42.1 ms** | **100.0%** |
-| **5,000 Chars** | 20 Chars (Redundant) | KPA Matrix Inversion | **78.4 ms** | **100.0%** |
-| **10,000 Chars** | 100 Chars (Redundant) | KPA Matrix Inversion | **215.0 ms** | **100.0%** |
+| Ciphertext length | Known letters | Success rate | Avg time (ms) | Worst time (ms) | Avg matrices tried |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 50 | 12 | 0.0% | 0.0 | 0.0 | 0 |
+| 100 | 25 | 0.0% | 0.0 | 0.1 | 0 |
+| 150 | 37 | 80.0% | 804.6 | 1742.5 | 650,590 |
+| 200 | 50 | 100.0% | 1292.5 | 2339.3 | 934,022 |
+| 500 | 125 | 100.0% | 1194.1 | 2307.1 | 862,325 |
+| 1,000 | 250 | 100.0% | 1179.8 | 2817.9 | 866,487 |
+| 5,000 | 1,250 | 100.0% | 1184.2 | 2440.0 | 822,389 |
+| 10,000 | 2,500 | 100.0% | 1225.3 | 2735.2 | 866,181 |
+
+Success depends on the amount of known text, which must be at least L + 20 letters:
+
+| Known letters (1,000-letter ciphertext) | Success rate | Avg time (ms) |
+| :---: | :---: | :---: |
+| 20 | 0.0% | 0.2 |
+| 30 | 0.0% | 208.9 |
+| 34 | 25.0% | 880.3 |
+| 36 | 65.0% | 1200.0 |
+| 40 | 100.0% | 1105.9 |
+| 50 | 100.0% | 1244.3 |
+| 60 | 100.0% | 1502.4 |
+| 100 | 100.0% | 1204.7 |
 
 > **Cryptanalytic Takeaway:** Classical linear product ciphers collapse under Known-Plaintext Cryptanalysis regardless of key length, demonstrating why modern ciphers (such as AES) mandate non-linear substitution boxes (S-Boxes).
 
@@ -150,14 +168,15 @@ Evaluated across varying message lengths on standard CPU hardware:
 
 Empirical benchmarks were executed across 50 iterations per message size:
 
-| Metric | Single-Stage Shift Cipher | Custom Two-Stage Cipher | Relative Ratio |
-|---|:---:|:---:|:---:|
-| **Asymptotic Time Complexity** | O(N) | O(N) | Identical O(N) Linear Class |
-| **Asymptotic Space Complexity** | O(N) | O(N) | Identical O(N) Linear Class |
-| **Keyspace Complexity** | 26 states (trivial) | 26¹⁰ × 157,248 ≈ **2.2 × 10¹⁹** | **8.5 × 10¹⁷×** Larger |
-| **Throughput (1,000 chars)** | 4,032,258 chars/s | **1,347,708 chars/s** | High-speed streaming |
-| **Encryption Time (1,000 chars)** | 0.248 ms | 0.742 ms | 2.99× Runtime Overhead |
-| **Resistance to Frequency Attacks** | Vulnerable (IoC = 0.0665) | **Resistant (IoC = 0.0405)** | Dramatically Superior |
+| Length | Custom encrypt (ms) | Custom decrypt (ms) | Shift encrypt (ms) | Shift decrypt (ms) | Encrypt overhead |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 100 | 0.0677 | 0.0508 | 0.0222 | 0.0225 | 3.05x |
+| 500 | 0.2882 | 0.2871 | 0.1182 | 0.1176 | 2.44x |
+| 1,000 | 0.4993 | 0.6358 | 0.2196 | 0.2153 | 2.27x |
+| 5,000 | 2.4265 | 2.2959 | 1.0988 | 1.1122 | 2.21x |
+| 10,000 | 4.7058 | 4.7004 | 2.5343 | 2.3451 | 1.86x |
+
+Encryption and decryption are O(N) for both ciphers. The two-stage design costs 1.9x to 3.0x the Shift cipher's time.
 
 ---
 
@@ -168,8 +187,8 @@ Empirical benchmarks were executed across 50 iterations per message size:
   <img src="benchmark_comparison.png" width="49%" alt="Empirical Encryption Latency and Attack Recovery" />
 </p>
 
-* **Figure 1 (Left):** Letter frequency flattening and Index of Coincidence comparison across English, Shift, and Custom ciphers.
-* **Figure 2 (Right):** Linear execution time scaling (O(N)) and Known-Plaintext Attack key recovery latency (< 45 ms).
+* **Figure 1 (Left):** Measured letter frequencies and Index of Coincidence of each cipher against English.
+* **Figure 2 (Right):** Measured execution time against length, and attack success against known plaintext.
 
 ---
 
@@ -184,8 +203,8 @@ Empirical benchmarks were executed across 50 iterations per message size:
 git clone https://github.com/ameemakhtr/NIS_CCP.git
 cd NIS_CCP
 
-# Install dependencies (if generating plots or compiling PDF)
-pip install reportlab matplotlib pypdf
+# Install dependencies (only needed for generating plots or compiling the PDF)
+pip install -r requirements.txt
 ```
 
 ### Execution Commands
@@ -194,13 +213,14 @@ pip install reportlab matplotlib pypdf
 # 1. Run Complete Automated Walkthrough (Demo Mode)
 python main.py --demo
 
-# 2. Run Automated Unit Tests (6/6 passing)
+# 2. Run Automated Unit Tests
 python test_suite.py
 
-# 3. Run Standalone Performance & Attack Benchmarks
+# 3. Re-measure performance and attacks (about 3 minutes, writes results.json)
 python benchmark.py
 
-# 4. Recompile Academic 6-Page PDF Report
+# 4. Redraw figures and recompile the PDF report from results.json
+python generate_plots.py
 python build_report_pdf.py
 ```
 
@@ -214,11 +234,14 @@ NIS_CCP/
 ├── custom_cipher.py                    # Custom Hybrid Cipher (Vigenère + Hill 2x2) & Shift Cipher
 ├── attack.py                           # Frequency analysis, IoC calculator & KPA solver
 ├── benchmark.py                        # Empirical latency & throughput benchmark suite
-├── test_suite.py                       # Automated unit tests (6/6 passing)
+├── test_suite.py                       # Automated unit tests
 ├── main.py                             # Interactive CLI & automated demo runner
-├── generate_plots.py                   # High-res vector plot generation script
-├── build_report_pdf.py                 # Academic 6-page PDF report compilation engine
-├── Complex_Computing_Problem_Report.pdf# Formal Academic PDF Report (6 pages)
+├── false_match_experiment.py           # Shows why the attack needs key length + 20 known letters
+├── results.json                        # Measured benchmark data used by the plots and report
+├── generate_plots.py                   # Draws the report figures from results.json
+├── build_report_pdf.py                 # Builds the PDF report from results.json
+├── requirements.txt                    # Packages for regenerating plots and the PDF
+├── Complex_Computing_Problem_Report.pdf# Formal Academic PDF Report
 ├── REPORT.md                           # Comprehensive Markdown technical report
 ├── README.md                           # Professional repository documentation
 ├── LICENSE                             # MIT Open-Source License
@@ -234,7 +257,6 @@ NIS_CCP/
 
 The formal, publication-grade academic report is precompiled and available directly in the repository:
 * **PDF File:** [`Complex_Computing_Problem_Report.pdf`](Complex_Computing_Problem_Report.pdf)
-* **Page Count:** Exactly 6 dense, fluff-free pages formatted to academic conference standards.
 * **Cover Page:** Formal NED University formatting, logo, department, course code, student credentials, and faculty designation.
 
 ---

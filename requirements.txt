@@ -1,0 +1,5 @@
+# Only needed to regenerate the plots and PDF report; the cipher, attack and tests use the standard library.
+reportlab
+matplotlib
+numpy
+pypdf

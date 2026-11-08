@@ -17,7 +17,17 @@ import math
 
 def clean_text(text: str) -> str:
     """Preprocess text: uppercase A-Z only."""
-    return "".join([c.upper() for c in text if c.isalpha()])
+    return "".join(c for c in text.upper() if "A" <= c <= "Z")
+
+
+def add_padding(text: str) -> str:
+    """Pads to even length: 'X' if odd, 'XA' if even, so padding is always removable."""
+    return text + ("X" if len(text) % 2 else "XA")
+
+
+def remove_padding(text: str) -> str:
+    """Inverse of add_padding: a trailing 'X' is one pad letter, otherwise two."""
+    return text[:-1] if text.endswith("X") else text[:-2]
 
 
 def egcd(a: int, b: int) -> Tuple[int, int, int]:
@@ -82,8 +92,10 @@ class CustomHybridCipher:
         Derives an invertible 2x2 matrix modulo 26 from the 10+ character key phrase.
         If initial letters form a singular matrix mod 26, shifts until gcd(det, 26) == 1.
         """
-        vals = [ord(c) - 65 for c in key_phrase[:4]]
-        a, b, c, d = vals[0], vals[1], vals[2], vals[3]
+        vals = [0, 0, 0, 0]
+        for i, ch in enumerate(key_phrase):  # every key letter influences the matrix
+            vals[i % 4] = (vals[i % 4] + ord(ch) - 65) % 26
+        a, b, c, d = vals
 
         det = (a * d - b * c) % 26
         while modinv(det, 26) is None:
@@ -175,20 +187,17 @@ class CustomHybridCipher:
         cleaned = clean_text(plaintext)
         if not cleaned:
             return ""
-        if len(cleaned) % 2 != 0:
-            cleaned += 'X'
 
-        stage1_output = self._vigenere_encrypt(cleaned)
+        stage1_output = self._vigenere_encrypt(add_padding(cleaned))
         stage2_output = self._hill_encrypt(stage1_output)
         return "".join(chr(val + 65) for val in stage2_output)
 
-    def decrypt(self, ciphertext: str, strip_padding: bool = False) -> str:
+    def decrypt(self, ciphertext: str) -> str:
         cleaned = clean_text(ciphertext)
         if not cleaned:
             return ""
+        if len(cleaned) % 2 != 0:
+            raise ValueError(f"Ciphertext must have even length! Got: {len(cleaned)}")
         nums = [ord(c) - 65 for c in cleaned]
         stage2_reversed = self._hill_decrypt(nums)
-        original_plaintext = self._vigenere_decrypt(stage2_reversed)
-        if strip_padding and original_plaintext.endswith('X'):
-            return original_plaintext[:-1]
-        return original_plaintext
+        return remove_padding(self._vigenere_decrypt(stage2_reversed))

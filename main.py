@@ -61,8 +61,7 @@ def run_full_walkthrough():
     decrypted = cipher.decrypt(ciphertext)
     print(f"    Decrypted Plaintext:")
     print(f"    \"{decrypted}\"")
-    expected = sample_message if len(sample_message) % 2 == 0 else sample_message + 'X'
-    match = (decrypted == expected)
+    match = (decrypted == sample_message)
     print(f"    Integrity Verification (Original == Decrypted): {match}")
 
     print(f"\n[3] STATISTICAL & FREQUENCY ANALYSIS:")
@@ -73,8 +72,8 @@ def run_full_walkthrough():
     print(f"    - Ciphertext Chi-Squared Statistic     : {stats['ciphertext_chi_sq']:.2f}")
     print(f"    - Top 5 Plaintext Letters              : {stats['top_plaintext_letters']}")
     print(f"    - Top 5 Ciphertext Letters             : {stats['top_ciphertext_letters']}")
-    print("    => Key Takeaway: The hybrid cipher combines polyalphabetic and polygraphic shifts,")
-    print("       thwarting direct single-letter frequency attacks.")
+    print("    => Key Takeaway: Letter frequencies are flattened towards uniform, which hides the")
+    print("       English distribution, but the cipher stays linear and falls to the attack below.")
 
     print(f"\n[4] KNOWN-PLAINTEXT ATTACK (KPA) SIMULATION:")
     known_prefix_len = 36
@@ -82,29 +81,30 @@ def run_full_walkthrough():
     print(f"    - Intercepted Ciphertext Length: {len(ciphertext)} chars")
     print(f"    - Known Plaintext Segment (First {known_prefix_len} chars):")
     print(f"      \"{known_prefix}\"")
+    print("    - Vigenere key length treated as unknown (searching from 10 upward)")
     print("    - Launching algebraic periodic constraint cryptanalysis...")
 
     attack_res = KnownPlaintextAttacker.attack(
         ciphertext=ciphertext,
-        known_prefix=known_prefix,
-        vigenere_key_len=len(vigenere_key)
+        known_prefix=known_prefix
     )
 
     if attack_res["success"]:
         print(f"    [+] ATTACK SUCCEEDED in {attack_res['elapsed_seconds'] * 1000.0:.3f} ms!")
         print(f"    [+] Matrices Evaluated: {attack_res['matrices_evaluated']}")
         print(f"    [+] Recovered 2x2 Hill Matrix: {attack_res['recovered_hill_mat']}")
+        print(f"    [+] Recovered Key Length     : {attack_res['recovered_key_len']}")
         print(f"    [+] Recovered Vigenere Key   : '{attack_res['recovered_vigenere_key']}'")
         print(f"    [+] Full Plaintext Message Recovered:")
         print(f"        \"{attack_res['recovered_full_plaintext']}\"")
-        exact_recovery = (attack_res['recovered_full_plaintext'] == expected)
+        exact_recovery = (attack_res['recovered_full_plaintext'] == sample_message)
         print(f"    [+] Full Message Exact Match: {exact_recovery}")
     else:
         print("    [-] Attack failed to find consistent key within limits.")
 
     print(f"\n[5] RUNNING EMPIRICAL BENCHMARKS:")
     benchmark_ciphers()
-    benchmark_attack()
+    benchmark_attack(trials=3)
 
 
 def interactive_menu():
@@ -115,8 +115,9 @@ def interactive_menu():
         print("  2. Encrypt & Decrypt Custom Text")
         print("  3. Run Known-Plaintext Attack on Custom Message")
         print("  4. Run Performance & Complexity Benchmarks")
-        print("  5. Exit")
-        choice = input("\nEnter choice (1-5): ").strip()
+        print("  5. Decrypt a Ciphertext")
+        print("  6. Exit")
+        choice = input("\nEnter choice (1-6): ").strip()
 
         if choice == "1":
             run_full_walkthrough()
@@ -146,10 +147,10 @@ def interactive_menu():
                     continue
                 ct = c.encrypt(text)
                 print(f"Ciphertext: {ct}")
-                known_len = int(input(f"Enter known prefix length (suggested >= 32) [Default: 36]: ").strip() or "36")
+                known_len = int(input(f"Enter known prefix length (needs key length + 20) [Default: 36]: ").strip() or "36")
                 known_p = clean_text(text)[:known_len]
                 print(f"Attacking with known prefix: '{known_p}'...")
-                res = KnownPlaintextAttacker.attack(ct, known_p, len(clean_text(vig_key)))
+                res = KnownPlaintextAttacker.attack(ct, known_p)
                 if res["success"]:
                     print(f"\n[+] Recovered Hill Matrix: {res['recovered_hill_mat']}")
                     print(f"[+] Recovered Vigenere Key: {res['recovered_vigenere_key']}")
@@ -161,12 +162,20 @@ def interactive_menu():
                 print(f"Error: {e}")
         elif choice == "4":
             benchmark_ciphers()
-            benchmark_attack()
+            benchmark_attack(trials=3)
         elif choice == "5":
+            vig_key = input("Enter Vigenere Key (>=10 chars): ").strip()
+            hill_key = input("Enter Hill Key Phrase (>=10 chars): ").strip()
+            try:
+                c = CustomHybridCipher(vig_key, hill_key)
+                print(f"Plaintext: {c.decrypt(input('Enter ciphertext: ').strip())}")
+            except ValueError as e:
+                print(f"Error: {e}")
+        elif choice == "6":
             print("Exiting...")
             break
         else:
-            print("Invalid choice, please select 1-5.")
+            print("Invalid choice, please select 1-6.")
 
 
 if __name__ == "__main__":

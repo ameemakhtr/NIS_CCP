@@ -42,8 +42,8 @@ Output: Ciphertext C
 
 1. P_clean <- Filter uppercase A-Z characters from P
 2. If Length(P_clean) mod 2 != 0 Then
-3.     P_clean <- P_clean + 'X'  // Pad to even length for 2x1 block processing
-4. End If
+3.     P_clean <- P_clean + 'X'  // Odd length: one padding letter
+4. Else P_clean <- P_clean + 'XA'  // Even length: two, so padding is always removable
 5. N <- Length(P_clean)
 6. Initialize array C_1 of length N
 7. For i <- 0 to N - 1 Do
@@ -82,7 +82,8 @@ Output: Original Plaintext P
 12.     shift <- Ord(K_V[i mod Length(K_V)]) - 65
 13.     P_chars[i] <- Chr(((C_1[i] - shift + 26) mod 26) + 65)
 14. End For
-15. Return concatenated string of P_chars
+15. If P_chars ends in 'X' remove 1 letter, otherwise remove 2 letters
+16. Return concatenated string of P_chars
 ```
 
 ---
@@ -91,17 +92,22 @@ Output: Original Plaintext P
 
 ### 3.1 Confusion and Diffusion
 * **Confusion:** The polyalphabetic substitution eliminates monoalphabetic 1-to-1 character mappings. A frequent letter like `'E'` in English ($12.7\%$) maps to different ciphertext letters depending on the key position.
-* **Diffusion:** The $2 \times 2$ Hill matrix transformation blends adjacent letter pairs. A modification in a single plaintext character alters both characters in the output block.
+* **Diffusion:** The $2 \times 2$ Hill matrix transformation blends adjacent letter pairs. Changing one plaintext letter changes at most its own output pair (measured average: 1.77 ciphertext letters), so diffusion is limited to one digram.
 
 ### 3.2 Statistical and Frequency Analysis
 The **Index of Coincidence (IoC)** measures non-uniformity in character distributions:
 $$IC = \frac{\sum_{i=A}^Z f_i (f_i - 1)}{N(N - 1)}$$
-* Standard English Plaintext: $IC \approx 0.0667$
-* Single-Stage Shift (Caesar) Cipher: $IC = 0.0655$ (Frequency distribution completely leaked)
-* Uniform Random / Polyalphabetic Baseline: $IC \approx 0.0385$
-* **Custom Hybrid Cipher:** $IC = \mathbf{0.0405}$
+Measured over 30 random key sets and 5,000-letter passages of English technical documentation, which is slightly above the textbook 0.0667:
 
-The cipher depresses the Index of Coincidence to near-random distribution ($0.0405$), rendering simple ciphertext-only frequency analysis attacks ineffective.
+| Text | Mean IoC | Chi-squared vs English |
+|---|:---:|:---:|
+| Plaintext (English) | 0.0703 | 534.0 |
+| Shift cipher | 0.0703 | 61,406.1 |
+| Hill only | 0.0445 | 29,986.2 |
+| Vigenere only | 0.0407 | 29,234.7 |
+| **Custom (Vigenere + Hill)** | 0.0391 | 29,480.5 |
+
+The Shift cipher keeps the plaintext's IoC exactly because it only renames letters. The custom cipher is close to the uniform value 0.0385 and its histogram no longer resembles English. Frequency analysis on its own does not recover the key, so it measures how well statistics are hidden; the cipher is broken by the attack in Section 4.
 
 ---
 
@@ -110,9 +116,9 @@ The cipher depresses the Index of Coincidence to near-random distribution ($0.04
 Per the requirements, an attack program was implemented using a **Known-Plaintext Attack (KPA)** scenario.
 
 ### 4.1 Attack Scenario and Methodology
-* **Assumed Attacker Access:** The adversary has intercepted the full ciphertext $C$ and possesses a known segment of the plaintext (first 36 characters) from standard message formats or headers.
+* **Assumed Attacker Access:** The adversary has the full ciphertext $C$ and its first $M$ letters of plaintext, for example a predictable header, and knows the algorithm but neither key nor the key length.
 * **Attack Method:**
-  1. The total search space of $2 \times 2$ invertible matrices over $\mathbb{Z}_{26}$ is $|GL(2, \mathbb{Z}_{26})| = 157,248$.
+  1. For each key length $L_V$ from 10 to $M - 20$: the total search space of $2 \times 2$ invertible matrices over $\mathbb{Z}_{26}$ is $|GL(2, \mathbb{Z}_{26})| = 157,248$.
   2. For each candidate matrix $K_H$, the attack inverts the Hill stage for the known prefix:
      $$\begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = K_H^{-1} \begin{pmatrix} y_1 \\ y_2 \end{pmatrix} \pmod{26}$$
   3. The implied Vigenère keystream is derived:
@@ -124,15 +130,32 @@ Per the requirements, an attack program was implemented using a **Known-Plaintex
 
 ### 4.2 Attack Success Rate and Computational Effort
 
-| Ciphertext Length ($N$) | Known Plaintext Characters ($M$) | Success Rate | Average Time (ms) | Candidate Matrices Evaluated |
-| :---: | :---: | :---: | :---: | :---: |
-| **100** | 36 | **100.0%** | **83.1 ms** | 42,881 |
-| **250** | 36 | **100.0%** | **83.1 ms** | 42,881 |
-| **500** | 36 | **100.0%** | **84.2 ms** | 42,881 |
-| **1000** | 36 | **100.0%** | **84.0 ms** | 42,881 |
+Measured by `benchmark.py` (20 trials per row, new random keys and English text each trial; saved in `results.json`). The first 25% of each message is known, and success means the exact full message was recovered.
 
-* **Success Rate:** $100\%$ across all tested lengths.
-* **Computational Effort:** The attack evaluates candidate matrices in less than **$85\text{ milliseconds}$** on standard hardware, fully recovering both keys and the unknown plaintext.
+| Ciphertext length | Known letters | Success rate | Avg time (ms) | Worst time (ms) | Avg matrices tried |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 50 | 12 | 0.0% | 0.0 | 0.0 | 0 |
+| 100 | 25 | 0.0% | 0.0 | 0.1 | 0 |
+| 150 | 37 | 80.0% | 804.6 | 1742.5 | 650,590 |
+| 200 | 50 | 100.0% | 1292.5 | 2339.3 | 934,022 |
+| 500 | 125 | 100.0% | 1194.1 | 2307.1 | 862,325 |
+| 1,000 | 250 | 100.0% | 1179.8 | 2817.9 | 866,487 |
+| 5,000 | 1,250 | 100.0% | 1184.2 | 2440.0 | 822,389 |
+| 10,000 | 2,500 | 100.0% | 1225.3 | 2735.2 | 866,181 |
+
+| Known letters (1,000-letter ciphertext) | Success rate | Avg time (ms) |
+| :---: | :---: | :---: |
+| 20 | 0.0% | 0.2 |
+| 30 | 0.0% | 208.9 |
+| 34 | 25.0% | 880.3 |
+| 36 | 65.0% | 1200.0 |
+| 40 | 100.0% | 1105.9 |
+| 50 | 100.0% | 1244.3 |
+| 60 | 100.0% | 1502.4 |
+| 100 | 100.0% | 1204.7 |
+
+* **Known text needed:** Success depends on the amount of known text, which must be at least $L_V + 20$ letters. Because $26 = 2 \times 13$, a matrix wrong only mod 2 passes each check about half the time, so fewer extra letters return wrong keys.
+* **Computational Effort:** When recovery succeeded the attack averaged about 1215 ms (worst 2818 ms), independent of ciphertext length, plus a one-off 350 ms to build the matrix pool.
 
 ---
 
@@ -153,28 +176,27 @@ Per the requirements, an attack program was implemented using a **Known-Plaintex
 
 ### 5.2 Empirical Execution Benchmarks (50 Iteration Averages)
 
-| Length ($N$ characters) | Custom Encrypt (ms) | Custom Decrypt (ms) | Shift Encrypt (ms) | Shift Decrypt (ms) | Overhead Factor |
+| Length | Custom encrypt (ms) | Custom decrypt (ms) | Shift encrypt (ms) | Shift decrypt (ms) | Encrypt overhead |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| **100** | 0.0300 ms | 0.0300 ms | 0.0126 ms | 0.0126 ms | $\approx 2.38\times$ |
-| **500** | 0.1426 ms | 0.1486 ms | 0.0601 ms | 0.0611 ms | $\approx 2.40\times$ |
-| **1,000** | 0.2831 ms | 0.2940 ms | 0.1183 ms | 0.1198 ms | $\approx 2.45\times$ |
-| **5,000** | 1.3792 ms | 1.4353 ms | 0.5583 ms | 0.5682 ms | $\approx 2.50\times$ |
-| **10,000** | 2.8358 ms | 2.9351 ms | 1.1191 ms | 1.1346 ms | $\approx 2.55\times$ |
+| 100 | 0.0677 | 0.0508 | 0.0222 | 0.0225 | 3.05x |
+| 500 | 0.2882 | 0.2871 | 0.1182 | 0.1176 | 2.44x |
+| 1,000 | 0.4993 | 0.6358 | 0.2196 | 0.2153 | 2.27x |
+| 5,000 | 2.4265 | 2.2959 | 1.0988 | 1.1122 | 2.21x |
+| 10,000 | 4.7058 | 4.7004 | 2.5343 | 2.3451 | 1.86x |
 
-* **Analysis:** Both algorithms scale linearly with message size. The Custom Hybrid Cipher incurs an expected $\approx 2.4\times$ computational overhead over the single-stage Shift cipher due to the two sequential mathematical passes, while maintaining high throughput ($> 3.4\text{ million characters/sec}$).
+* **Analysis:** Both algorithms scale linearly with message size. The two-stage cipher costs 1.9x to 3.0x the Shift cipher's time. Encrypting 1,000 letters took 0.499 ms against 0.220 ms.
 
 ---
 
 ## 6. Suggestions for Improving the Cipher's Security
 
-To enhance security without significantly increasing algorithmic complexity:
+The attack depends on linearity and on the repeating key, so useful changes must remove one of these. Each option stays $O(N)$. They were not implemented or measured here.
 
-1. **Autokey Key Scheduling:**  
-   Replace the periodic repeating Vigenère key with an **Autokey** mechanism where subsequent keystream values are drawn from the plaintext itself ($K[i] = P[i - L_V]$). This retains $O(N)$ linear complexity while eliminating the periodic keystream alignment exploited by the attack.
-2. **Larger Matrix Dimensions ($3 \times 3$ or $4 \times 4$):**  
-   Increasing the Hill block size to $m = 3$ or $m = 4$ expands the matrix key space to $1.6 \times 10^{12}$ and $8.6 \times 10^{21}$ possible matrices, making exhaustive algebraic search computationally infeasible while adding negligible matrix multiplication overhead.
-3. **Non-Linear S-Box Substitution:**  
-   Introduce a simple non-linear permutation lookup (S-Box) between stages to break the linear modular relationships over $\mathbb{Z}_{26}$.
+1. **Keyed Non-Linear Substitution:** Pass each Vigenère output letter through a secret permutation of the alphabet between the stages. $K[i] = x_i - P[i]$ then no longer holds, so the key cannot be read off after guessing the matrix.
+2. **Keyed Columnar Transposition:** Reorder letters by a secret permutation between the stages, separating known plaintext from the ciphertext positions it produces.
+3. **Non-Repeating Keystream:** Derive a different Vigenère key per message from the main key and a per-message value, so the periodicity check has nothing to test.
+
+A longer Vigenère key only raises the known text needed. A larger Hill matrix alone leaves the system linear: subtracting blocks a whole number of key periods apart cancels the Vigenère term, giving $\Delta C = K_H \Delta P$, which linear algebra solves without search.
 
 ---
 
@@ -186,7 +208,8 @@ All project source files are hosted in the public GitHub repository:
 ### Repository Contents:
 * `custom_cipher.py`: Cipher implementation and baseline Shift cipher.
 * `attack.py`: Frequency analysis and Known-Plaintext Attack solver.
-* `benchmark.py`: Empirical timing and complexity benchmarking suite.
+* `benchmark.py`: Empirical timing and attack benchmarks, written to `results.json`.
+* `generate_plots.py`: Draws the figures from `results.json`.
 * `test_suite.py`: Automated unit tests.
 * `main.py`: Interactive CLI application (`python main.py --demo`).
 * `build_report_pdf.py`: Academic PDF report generation engine.

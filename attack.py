@@ -12,7 +12,7 @@ Cryptanalytic Techniques:
 import time
 from collections import Counter
 from typing import Dict, List, Tuple, Optional, Any
-from custom_cipher import clean_text, modinv, CustomHybridCipher
+from custom_cipher import clean_text, modinv, remove_padding
 
 # Standard English letter frequencies (percentage)
 ENGLISH_FREQ = {
@@ -26,6 +26,13 @@ ENGLISH_FREQ = {
 
 ENGLISH_IC = 0.0667  # Index of Coincidence for natural English
 RANDOM_IC = 0.0385   # Index of Coincidence for uniform random text
+
+# Smallest key period the cipher accepts (public design parameter, not a secret).
+MIN_KEY_PERIOD = 10
+# Known letters needed beyond one key period, each checked against a repeated keystream
+# position. Mod 26 splits into mod 2 and mod 13, and a matrix wrong only mod 2 passes each
+# digram check about half the time: 8 extra letters gave 9% wrong keys, 20 gave 0 of 150.
+MIN_REDUNDANCY = 20
 
 
 def _precompute_gl2() -> List[Tuple[int, int, int, int, int, int, int, int]]:
@@ -129,16 +136,16 @@ class KnownPlaintextAttacker:
         cls,
         ciphertext: str,
         known_prefix: str,
-        vigenere_key_len: int
+        vigenere_key_len: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Executes Known-Plaintext Attack using algebraic periodic constraint propagation.
+        If vigenere_key_len is None the period is unknown and every feasible one is tried.
         """
         start_time = time.perf_counter()
         c_clean = clean_text(ciphertext)
         p_clean = clean_text(known_prefix)
 
-        L_V = vigenere_key_len
         c_nums = [ord(c) - 65 for c in c_clean]
         p_nums = [ord(c) - 65 for c in p_clean]
 
@@ -152,41 +159,55 @@ class KnownPlaintextAttacker:
             for i in range(0, known_even_len, 2)
         ]
 
+        max_period = known_even_len - MIN_REDUNDANCY
+        if vigenere_key_len is None:
+            periods = range(MIN_KEY_PERIOD, max_period + 1)
+        else:
+            periods = [vigenere_key_len] if vigenere_key_len <= max_period else []
+
         matrices_evaluated = 0
         found = False
         recovered_hill = None
         recovered_vigenere_key = None
+        L_V = None
 
-        # High-speed search through precomputed GL(2, Z_26) pool
-        for ia, ib, ic, id_val, a, b, c_val, d in _GL2_CACHE:
-            matrices_evaluated += 1
+        for L_V in periods:
+            # Group pairs sharing a key position so a wrong matrix conflicts after a few checks
+            ordered_pairs = sorted(known_pairs, key=lambda pair: pair[4] % L_V)
 
-            consistent = True
-            keystream = [None] * L_V
+            # High-speed search through precomputed GL(2, Z_26) pool
+            for ia, ib, ic, id_val, a, b, c_val, d in _GL2_CACHE:
+                matrices_evaluated += 1
 
-            for y1, y2, p1, p2, i1, i2 in known_pairs:
-                # Invert Hill: x1 = (ia*y1 + ib*y2) mod 26
-                x1 = (ia * y1 + ib * y2) % 26
-                k1 = (x1 - p1) % 26
-                pos1 = i1 % L_V
-                if keystream[pos1] is not None and keystream[pos1] != k1:
-                    consistent = False
+                consistent = True
+                keystream = [None] * L_V
+
+                for y1, y2, p1, p2, i1, i2 in ordered_pairs:
+                    # Invert Hill: x1 = (ia*y1 + ib*y2) mod 26
+                    x1 = (ia * y1 + ib * y2) % 26
+                    k1 = (x1 - p1) % 26
+                    pos1 = i1 % L_V
+                    if keystream[pos1] is not None and keystream[pos1] != k1:
+                        consistent = False
+                        break
+                    keystream[pos1] = k1
+
+                    # Invert Hill: x2 = (ic*y1 + id_val*y2) mod 26
+                    x2 = (ic * y1 + id_val * y2) % 26
+                    k2 = (x2 - p2) % 26
+                    pos2 = i2 % L_V
+                    if keystream[pos2] is not None and keystream[pos2] != k2:
+                        consistent = False
+                        break
+                    keystream[pos2] = k2
+
+                if consistent and all(k is not None for k in keystream):
+                    found = True
+                    recovered_hill = (a, b, c_val, d, (ia, ib, ic, id_val))
+                    recovered_vigenere_key = "".join(chr(k + 65) for k in keystream)
                     break
-                keystream[pos1] = k1
 
-                # Invert Hill: x2 = (ic*y1 + id_val*y2) mod 26
-                x2 = (ic * y1 + id_val * y2) % 26
-                k2 = (x2 - p2) % 26
-                pos2 = i2 % L_V
-                if keystream[pos2] is not None and keystream[pos2] != k2:
-                    consistent = False
-                    break
-                keystream[pos2] = k2
-
-            if consistent and all(k is not None for k in keystream):
-                found = True
-                recovered_hill = (a, b, c_val, d, (ia, ib, ic, id_val))
-                recovered_vigenere_key = "".join(chr(k + 65) for k in keystream)
+            if found:
                 break
 
         elapsed = time.perf_counter() - start_time
@@ -198,6 +219,7 @@ class KnownPlaintextAttacker:
                 "matrices_evaluated": matrices_evaluated,
                 "recovered_hill_mat": None,
                 "recovered_vigenere_key": None,
+                "recovered_key_len": None,
                 "recovered_full_plaintext": None,
             }
 
@@ -223,5 +245,6 @@ class KnownPlaintextAttacker:
             "matrices_evaluated": matrices_evaluated,
             "recovered_hill_mat": recovered_hill[:4],
             "recovered_vigenere_key": recovered_vigenere_key,
-            "recovered_full_plaintext": "".join(full_plaintext),
+            "recovered_key_len": L_V,
+            "recovered_full_plaintext": remove_padding("".join(full_plaintext)),
         }
