@@ -197,6 +197,7 @@ Encryption and decryption are O(N) for both ciphers. The two-stage design costs 
 ### Prerequisites
 * Python 3.10+ (tested on Python 3.14)
 * Standard libraries (`reportlab` and `matplotlib` for regenerating reports/plots)
+* Liberation Serif and Liberation Mono, or Times New Roman and Courier New, installed for compiling the PDF
 * `benchmark.py` uses Python's bundled `pydoc_data` as its English sample. If your Python omits it, a short built-in text is repeated instead, so new letter statistics are less reliable than those in `results.json`.
 
 ```bash
