@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react'
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 const BLUE = '#1F6C9F'
 const AMBER = '#D9A441'
+const TEAM = [
+  ['Maaz Waseem', 'CR-23041', 'Lead'],
+  ['Ameem Akhtar', 'CR-23013'],
+  ['Muhammad Usman', 'CR-23038'],
+  ['Minhal Rizvi', 'CR-23017'],
+]
 
 const letterCount = (text) => text.toUpperCase().replace(/[^A-Z]/g, '').length
 const inPairs = (text) => text.replace(/(..)/g, '$1 ').trim()
@@ -422,15 +428,30 @@ export default function App() {
 
       <main className="wrap" id="top">
         <header className="hero reveal">
-          <span className="eyebrow">Network and Information Security, Complex Computing Problem</span>
-          <h1>A two-stage classical cipher, built and then broken.</h1>
-          <p>Enter your own message and keys. Every value on this page is computed by the project's Python code.</p>
-          <div className="pipeline" aria-label="Plaintext goes through Vigenere, then Hill, to give ciphertext">
-            <span>Plaintext</span><i />
-            <span className="step">Vigenere<small>Substitution</small></span><i />
-            <span className="step">Hill 2×2<small>Matrix mod 26</small></span><i />
-            <span>Ciphertext</span>
+          <div>
+            <span className="eyebrow">Network and Information Security, Complex Computing Problem</span>
+            <h1>A two-stage classical cipher, built and then broken.</h1>
+            <p>Enter your own message and keys. Every value on this page is computed by the project's Python code.</p>
+            <div className="pipeline" aria-label="Plaintext goes through Vigenere, then Hill, to give ciphertext">
+              <span>Plaintext</span><i />
+              <span className="step">Vigenere<small>Substitution</small></span><i />
+              <span className="step">Hill 2×2<small>Matrix mod 26</small></span><i />
+              <span>Ciphertext</span>
+            </div>
           </div>
+          <aside className="card team">
+            <span className="tile-label">Course Instructor</span>
+            <strong className="instructor">Prof Shariq Mehmood</strong>
+            <h2>Team Entropy</h2>
+            <ul>
+              {TEAM.map(([name, roll, role]) => (
+                <li key={roll}>
+                  <span>{name}{role && <span className="badge lead">{role}</span>}</span>
+                  <code>{roll}</code>
+                </li>
+              ))}
+            </ul>
+          </aside>
         </header>
 
         <Section id="encrypt" index="01" title="Encrypt and decrypt" lead="Letters are grouped in pairs below because the Hill stage works on two letters at a time.">

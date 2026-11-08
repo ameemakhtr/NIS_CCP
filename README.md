@@ -221,6 +221,50 @@ python server.py
 
 Then open http://127.0.0.1:8000. For live UI editing, keep `python server.py` running and use `npm run dev` inside `ui/`.
 
+<p align="center">
+  <img src="docs/ui-hero.png" width="100%" alt="Cipher Lab home screen with the course instructor and Team Entropy members" />
+</p>
+
+### Complete Demo Example
+
+Enter these three values on the page:
+
+| Field | Value |
+| :--- | :--- |
+| **Message** | `The exam results will be announced on Friday morning at the main notice board of the department.` |
+| **Vigenere key** | `NETWORKSECURITY` |
+| **Hill key phrase** | `TEAMENTROPYNED` |
+
+**1. Press Encrypt.** The message has 79 letters, which is odd, so one `X` is added as padding.
+
+| Output | Value |
+| :--- | :--- |
+| **Hill matrix** | `[[15, 9], [17, 16]]` |
+| **Inverse matrix** | `[[22, 25], [1, 19]]` |
+| **After Vigenere** | `GLXALRWJIUOCBLUVPEXSRXFSWHTMWMAJKERRIESTHZVZYGXAAARSFRQNZKXZBEKZCWDZIFYGIKRZIGPL` |
+| **Ciphertext** | `HSHBGRVYOOUKKLVABHNDUHDJDSDVWUDOEASPASZMSZUDYKHBAABFUTTMXNYLZDLYUWKJJIYKCKMNSYMP` |
+
+**2. Press Decrypt.** The original letters return without the padding:
+`THEEXAMRESULTSWILLBEANNOUNCEDONFRIDAYMORNINGATTHEMAINNOTICEBOARDOFTHEDEPARTMENT`
+
+**3. Read the frequency analysis.** The Index of Coincidence falls from 0.0610 to 0.0424, close to the 0.0385 of uniform text. Chi-squared against English rises from 17 to 328.
+
+<p align="center">
+  <img src="docs/ui-frequency-graphs.png" width="100%" alt="Letter frequency graphs comparing the demo plaintext and ciphertext with expected English" />
+</p>
+
+**4. Press Run attack.** The first 36 letters are filled in as known plaintext, and the attacker is given neither key nor the key length.
+
+| Recovered | Value |
+| :--- | :--- |
+| **Vigenere key** | `NETWORKSECURITY` (length 15) |
+| **Hill matrix** | `[[15, 9], [17, 16]]` |
+| **Matrices tried** | 877,557 |
+| **Time** | About 0.7 seconds, varies by machine |
+| **Full message** | Recovered exactly |
+
+**5. Move the slider to 20 letters and run the attack again.** It reports that the key was not found, because a 15-letter key needs at least 36 known letters.
+
 ### Execution Commands
 
 ```bash
@@ -256,6 +300,7 @@ NIS_CCP/
 ├── false_match_experiment.py           # Shows why the attack needs key length + 20 known letters
 ├── server.py                           # Local JSON API and host for the React interface
 ├── ui/                                 # React interface (Vite)
+├── docs/                               # Screenshots of the web interface
 ├── results.json                        # Measured benchmark data used by the plots and report
 ├── generate_plots.py                   # Draws the report figures from results.json
 ├── build_report_pdf.py                 # Builds the PDF report from results.json

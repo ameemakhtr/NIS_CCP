@@ -46,7 +46,15 @@ code, .mono { font-family: var(--mono); }
 .links a { transition: color 0.15s; }
 .links a:hover { color: var(--strong); }
 
-.hero { padding: 104px 0 64px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 56px; align-items: center; padding: 104px 0 64px; }
+.team { padding: 26px; }
+.instructor { display: block; margin-top: 2px; font-size: 15px; font-weight: 600; color: var(--strong); }
+.team h2 { margin: 22px 0 6px; padding-top: 20px; border-top: 1px solid var(--border); font: 400 28px/1.1 var(--serif); letter-spacing: -0.02em; color: var(--strong); }
+.team ul { margin: 0; padding: 0; list-style: none; }
+.team li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f3f3f1; font-size: 14px; }
+.team li:last-child { border-bottom: 0; padding-bottom: 0; }
+.team code { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.badge.lead { margin-left: 8px; padding: 2px 8px; background: #e1f3fe; color: #1f6c9f; font-size: 10px; }
 .eyebrow { font: 500 12px var(--mono); color: var(--muted); letter-spacing: 0.02em; }
 h1 {
   max-width: 780px;
@@ -227,7 +235,7 @@ tr:last-child td { border-bottom: 0; }
 @media (max-width: 820px) {
   .span-5, .span-6, .span-7 { grid-column: span 12; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hero { padding: 64px 0 40px; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 64px 0 40px; }
   .section { padding: 56px 0; }
   .links { gap: 14px; font-size: 13px; }
   .card { padding: 20px; }
