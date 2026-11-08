@@ -210,7 +210,10 @@ pip install -r requirements.txt
 ### Execution Commands
 
 ```bash
-# 1. Run Complete Automated Walkthrough (Demo Mode)
+# 0. Interactive mode: enter your own message and keys
+python main.py
+
+# 1. Run the fixed sample used for reproducible results (Demo Mode)
 python main.py --demo
 
 # 2. Run Automated Unit Tests

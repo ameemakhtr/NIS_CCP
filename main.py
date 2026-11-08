@@ -31,11 +31,18 @@ def print_banner():
 """)
 
 
-def run_full_walkthrough():
+DEMO_MESSAGE = (
+    "CONFIDENTIALCOMMUNICATIONFORNETWORKANDINFORMATIONSECURITYLABORATORY"
+    "ALLSTUDENTSMUSTIMPLEMENTANDCRYPTANALYZECLASSICALCIPHERTECHNIQUES"
+)
+
+
+def run_full_walkthrough(vigenere_key="CRYPTOGRAPHYKEY", hill_key="HILLCIPHERKEY",
+                         sample_message=DEMO_MESSAGE, benchmarks=True):
     print("\n>>> EXECUTING AUTOMATED COMPREHENSIVE WALKTHROUGH <<<\n")
 
-    vigenere_key = "CRYPTOGRAPHYKEY"   # 15 chars
-    hill_key = "HILLCIPHERKEY"         # 13 chars
+    vigenere_key, hill_key = clean_text(vigenere_key), clean_text(hill_key)
+    sample_message = clean_text(sample_message)
     print(f"[*] Initializing Custom Hybrid Cipher (Vigenere + Hill):")
     print(f"    - Stage 1 Vigenere Key : '{vigenere_key}' (Length: {len(vigenere_key)})")
     print(f"    - Stage 2 Hill Key     : '{hill_key}' (Length: {len(hill_key)})")
@@ -43,11 +50,6 @@ def run_full_walkthrough():
     cipher = CustomHybridCipher(vigenere_key, hill_key)
     print(f"    - Generated 2x2 Hill Key Matrix: {cipher.hill_mat[:2]}")
     print(f"                                     {cipher.hill_mat[2:]}")
-
-    sample_message = (
-        "CONFIDENTIALCOMMUNICATIONFORNETWORKANDINFORMATIONSECURITYLABORATORY"
-        "ALLSTUDENTSMUSTIMPLEMENTANDCRYPTANALYZECLASSICALCIPHERTECHNIQUES"
-    )
 
     print(f"\n[1] ENCRYPTION PHASE:")
     print(f"    Plaintext (N={len(sample_message)} chars):")
@@ -76,10 +78,10 @@ def run_full_walkthrough():
     print("       English distribution, but the cipher stays linear and falls to the attack below.")
 
     print(f"\n[4] KNOWN-PLAINTEXT ATTACK (KPA) SIMULATION:")
-    known_prefix_len = 36
+    known_prefix_len = len(vigenere_key) + 21  # attack needs key length + 20 after rounding down to pairs
     known_prefix = sample_message[:known_prefix_len]
     print(f"    - Intercepted Ciphertext Length: {len(ciphertext)} chars")
-    print(f"    - Known Plaintext Segment (First {known_prefix_len} chars):")
+    print(f"    - Known Plaintext Segment (First {len(known_prefix)} chars):")
     print(f"      \"{known_prefix}\"")
     print("    - Vigenere key length treated as unknown (searching from 10 upward)")
     print("    - Launching algebraic periodic constraint cryptanalysis...")
@@ -100,18 +102,19 @@ def run_full_walkthrough():
         exact_recovery = (attack_res['recovered_full_plaintext'] == sample_message)
         print(f"    [+] Full Message Exact Match: {exact_recovery}")
     else:
-        print("    [-] Attack failed to find consistent key within limits.")
+        print(f"    [-] Attack failed: this key needs {known_prefix_len} known letters, message has {len(sample_message)}.")
 
-    print(f"\n[5] RUNNING EMPIRICAL BENCHMARKS:")
-    benchmark_ciphers()
-    benchmark_attack(trials=3)
+    if benchmarks:
+        print(f"\n[5] RUNNING EMPIRICAL BENCHMARKS:")
+        benchmark_ciphers()
+        benchmark_attack(trials=3)
 
 
 def interactive_menu():
     print_banner()
     while True:
         print("\nMain Menu:")
-        print("  1. Run Complete Automated Walkthrough (Recommended)")
+        print("  1. Run Complete Walkthrough on Your Own Message (Recommended)")
         print("  2. Encrypt & Decrypt Custom Text")
         print("  3. Run Known-Plaintext Attack on Custom Message")
         print("  4. Run Performance & Complexity Benchmarks")
@@ -120,7 +123,16 @@ def interactive_menu():
         choice = input("\nEnter choice (1-6): ").strip()
 
         if choice == "1":
-            run_full_walkthrough()
+            vig_key = input("Enter Vigenere Key (>=10 chars) [Default: CRYPTOGRAPHYKEY]: ").strip() or "CRYPTOGRAPHYKEY"
+            hill_key = input("Enter Hill Key Phrase (>=10 chars) [Default: HILLCIPHERKEY]: ").strip() or "HILLCIPHERKEY"
+            message = input("Enter message to encrypt, decrypt and attack: ").strip()
+            if not clean_text(message):
+                print("Empty input!")
+                continue
+            try:
+                run_full_walkthrough(vig_key, hill_key, message, benchmarks=False)
+            except ValueError as e:
+                print(f"Error: {e}")
         elif choice == "2":
             vig_key = input("Enter Vigenere Key (>=10 chars) [Default: CRYPTOGRAPHYKEY]: ").strip() or "CRYPTOGRAPHYKEY"
             hill_key = input("Enter Hill Key Phrase (>=10 chars) [Default: HILLCIPHERKEY]: ").strip() or "HILLCIPHERKEY"
