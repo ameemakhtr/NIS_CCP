@@ -223,7 +223,7 @@ pip install -r requirements.txt
 
 ### Web Interface
 
-The React interface calls the same Python cipher and attack code through a local server. Building it needs Node.js 20 or newer.
+The React interface calls the same Python cipher and attack code through a local server. Building it needs Node.js 20.19 or newer.
 
 ```bash
 cd ui
