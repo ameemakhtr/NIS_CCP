@@ -127,6 +127,12 @@ class TestCustomCipher(unittest.TestCase):
         self.assertEqual(result["recovered_key_len"], len(self.vigenere_key))
         self.assertEqual(result["recovered_full_plaintext"], message)
 
+    def test_attack_rejects_invalid_input(self):
+        """Called directly, attack() reports bad input instead of crashing."""
+        for ciphertext, known in (("ABC", "A"), ("ABCD", "ABCDEF")):
+            with self.assertRaises(ValueError):
+                KnownPlaintextAttacker.attack(ciphertext, known)
+
     def test_attack_refuses_too_little_known_text(self):
         """Without redundancy a match would be coincidence, so report failure."""
         message = "ATTACKTHEEASTERNRELAYATDAWNANDHOLDUNTILRELIEFARRIVES"

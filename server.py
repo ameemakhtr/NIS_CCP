@@ -70,12 +70,10 @@ def decrypt(data: dict) -> dict:
 def attack(data: dict) -> dict:
     ciphertext = clean_text(text_field(data, "ciphertext"))
     known = clean_text(text_field(data, "known_plaintext"))
-    if not ciphertext or len(ciphertext) % 2:
-        raise ValueError("The ciphertext must have an even number of letters.")
+    if not ciphertext:
+        raise ValueError("Enter the intercepted ciphertext.")
     if not known:
         raise ValueError("Enter the plaintext the attacker already knows.")
-    if len(known) > len(ciphertext):
-        raise ValueError("Known plaintext cannot be longer than the ciphertext.")
 
     result = KnownPlaintextAttacker.attack(ciphertext, known)
     result["known_letters"] = len(known)

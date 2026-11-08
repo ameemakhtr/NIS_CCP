@@ -70,29 +70,41 @@ The order of the General Linear Group provides |GL(2, ℤ₂₆)| = **157,248** 
 
 ### 1. Custom Cipher Encryption (`custom_cipher.py`)
 ```python
+def add_padding(text: str) -> str:
+    """Pads to even length: 'X' if odd, 'XA' if even, so padding is always removable."""
+    return text + ("X" if len(text) % 2 else "XA")
+
 def encrypt(self, plaintext: str) -> str:
-    cleaned = [c for c in plaintext.upper() if c in ALPHABET]
-    if len(cleaned) % 2 != 0:
-        cleaned.append('X')  # Pad for 2x1 block processing
-    
-    # Stage 1: Vigenère Substitution
-    c1 = [(ord(p) - 65 + ord(self.vig_key[i % self.vig_len]) - 65) % 26 
-          for i, p in enumerate(cleaned)]
-    
-    # Stage 2: Hill Block Matrix Transformation (Column-Vector convention)
-    c2 = []
-    a, b, c, d = self.hill_matrix
-    for j in range(0, len(c1), 2):
-        x1, x2 = c1[j], c1[j+1]
-        c2.append(chr(((a * x1 + b * x2) % 26) + 65))
-        c2.append(chr(((c * x1 + d * x2) % 26) + 65))
-    return "".join(c2)
+    cleaned = clean_text(plaintext)
+    if not cleaned:
+        return ""
+
+    stage1_output = self._vigenere_encrypt(add_padding(cleaned))
+    stage2_output = self._hill_encrypt(stage1_output)
+    return "".join(chr(val + 65) for val in stage2_output)
+
+def _vigenere_encrypt(self, text: str) -> List[int]:
+    res = []
+    k_len = len(self.vigenere_key)
+    for i, ch in enumerate(text):
+        shift = ord(self.vigenere_key[i % k_len]) - 65
+        c = (ord(ch) - 65 + shift) % 26
+        res.append(c)
+    return res
+
+# Inside _hill_encrypt: column-vector convention, Y = K * x mod 26
+a, b, c, d = self.hill_mat
+for i in range(0, len(nums), 2):
+    x1, x2 = nums[i], nums[i + 1]
+    y1 = (a * x1 + b * x2) % 26
+    y2 = (c * x1 + d * x2) % 26
+    res.extend([y1, y2])
 ```
 
 ### 2. Custom Cipher Decryption (`custom_cipher.py`)
 * Computes modular inverse Δ⁻¹ (mod 26) using the Extended Euclidean Algorithm.
 * Multiplies ciphertext digram vectors by **K**_hill⁻¹ (mod 26) to invert Stage 2.
-* Subtracts modular Vigenère key shifts to perfectly restore original plaintext.
+* Subtracts modular Vigenère key shifts, then removes the `X` or `XA` padding to restore the original plaintext.
 
 ---
 

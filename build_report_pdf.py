@@ -466,8 +466,8 @@ def build_pdf():
     # SECTION 7: CODE
     # =========================================================
     add_section("7. Code Submission")
-    add_text("The source code, tests and measurement scripts are at: <b><u>https://github.com/ameemakhtr/NIS_CCP</u></b>. Running <font face='Mono'>python benchmark.py</font> reproduces <font face='Mono'>results.json</font>, from which every table and figure above is generated.")
-    add_text("<b>Code Availability.</b> The repository is available at https://github.com/ameemakhtr/NIS_CCP, and the project is run with these commands:")
+    add_text("The source code, tests and measurement scripts are in the repository given below. Running <font face='Mono'>python benchmark.py</font> reproduces <font face='Mono'>results.json</font>, from which every table and figure above is generated.")
+    add_text("<b>Code Availability.</b> The repository is available at <b><u>https://github.com/ameemakhtr/NIS_CCP</u></b>, and the project is run with these commands:")
     add_code(
         "python test_suite.py\n"
         "python main.py --demo\n"

@@ -1,6 +1,6 @@
 """
 Custom Hybrid Classical Cipher Implementation
-Course: Network and Information Security (CT-460 / CT-486)
+Course: Network and Information Security (CT-486)
 Instructor: Dr. Shariq Mahmood Khan
 Department of Computer Science & IT, NED University of Engineering & Technology, Karachi
 

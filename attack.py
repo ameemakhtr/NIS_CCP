@@ -1,6 +1,6 @@
 """
 Security Analysis and Attack Simulation Module
-Course: Network and Information Security (CT-460 / CT-486)
+Course: Network and Information Security (CT-486)
 Instructor: Dr. Shariq Mahmood Khan
 Department of Computer Science & IT, NED University of Engineering & Technology, Karachi
 
@@ -145,6 +145,10 @@ class KnownPlaintextAttacker:
         start_time = time.perf_counter()
         c_clean = clean_text(ciphertext)
         p_clean = clean_text(known_prefix)
+        if len(c_clean) % 2:
+            raise ValueError("The ciphertext must have an even number of letters.")
+        if len(p_clean) > len(c_clean):
+            raise ValueError("Known plaintext cannot be longer than the ciphertext.")
 
         c_nums = [ord(c) - 65 for c in c_clean]
         p_nums = [ord(c) - 65 for c in p_clean]
